@@ -1,5 +1,5 @@
 // ==========================================
-// ABOOD SYSTEM BOT - JSON Database Version (No MongoDB Required)
+// ABOOD SYSTEM BOT - Ultimate Full Version (JSON DB + All VORTEX Features + Suggestions)
 // ==========================================
 
 require('dotenv').config();
@@ -49,11 +49,10 @@ function writeDB(name, data) {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
 
-// Database wrappers
 const DB = {
     getConfig: (guildId) => {
         const db = readDB('guild_configs');
-        return db[guildId] || { guildId, security: {}, levels: {}, logs: {}, welcome: {}, suggestions: {} };
+        return db[guildId] || { guildId, security: {}, levels: {}, logs: {}, welcome: {}, suggestions: {}, autoReply: [], rolesPanel: [] };
     },
     saveConfig: (guildId, newConfig) => {
         const db = readDB('guild_configs');
@@ -69,9 +68,32 @@ const DB = {
         db[guildId] = data;
         writeDB('kick_configs', db);
     },
+    getModConfig: (guildId) => {
+        const db = readDB('mod_configs');
+        return db[guildId] || { jail: { commandName: 'jail', unjailCommand: 'unjail' } };
+    },
+    saveModConfig: (guildId, data) => {
+        const db = readDB('mod_configs');
+        db[guildId] = data;
+        writeDB('mod_configs', db);
+    },
+    getJail: (guildId, userId) => {
+        const db = readDB('jail_data');
+        return db[`${guildId}_${userId}`];
+    },
+    saveJail: (guildId, userId, data) => {
+        const db = readDB('jail_data');
+        db[`${guildId}_${userId}`] = data;
+        writeDB('jail_data', db);
+    },
+    deleteJail: (guildId, userId) => {
+        const db = readDB('jail_data');
+        delete db[`${guildId}_${userId}`];
+        writeDB('jail_data', db);
+    },
     getTicketConfig: (guildId) => {
         const db = readDB('ticket_configs');
-        return db[guildId] || {};
+        return db[guildId] || { buttons: [], menuOptions: [] };
     },
     saveTicketConfig: (guildId, data) => {
         const db = readDB('ticket_configs');
@@ -127,7 +149,7 @@ if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ==========================================
-// 3. تعريف الـ Client
+// 3. Discord Client Setup
 // ==========================================
 const client = new Client({
     intents: [
@@ -146,13 +168,24 @@ const client = new Client({
 
 const commands = [
     new SlashCommandBuilder().setName('setbanner').setDescription('رفع صورة الخط').addAttachmentOption(o => o.setName('image').setDescription('صورة البنر').setRequired(true)),
-    new SlashCommandBuilder().setName('rename_panel').setDescription('لوحة تغيير الاسم').addStringOption(o => o.setName('name').setRequired(true).setDescription('الاسم')).addAttachmentOption(o => o.setName('image').setDescription('صورة اختيارية')),
+    new SlashCommandBuilder().setName('rename_panel').setDescription('لوحة تغيير الاسم').addStringOption(o => o.setName('name').setRequired(true).setDescription('الاسم')).addAttachmentOption(o => o.setName('image').setDescription('صورة اختيارية')) ,
     new SlashCommandBuilder().setName('suggest').setDescription('إرسال اقتراح جديد').addStringOption(o => o.setName('text').setDescription('نص الاقتراح').setRequired(true))
 ].map(c => c.toJSON());
 
 // ==========================================
-// 4. الدوال المساعدة ونظام الاقتراحات المطور
+// 4. Helper Functions & Suggestion System
 // ==========================================
+async function sendLog(guild, type, embed) {
+    const config = DB.getConfig(guild.id);
+    if (!config?.logs) return;
+    const logChannelId = config.logs[type]?.channel;
+    const enabled = config.logs[type]?.enabled;
+    if (!enabled || !logChannelId) return;
+    const logChannel = guild.channels.cache.get(logChannelId);
+    if (!logChannel) return;
+    logChannel.send({ embeds: [embed] }).catch(() => {});
+}
+
 function buildSuggestionEmbed(author, text, status = 'قيد المراجعة', replyText = null, votes = { approve: 0, reject: 0 }) {
     const embed = new EmbedBuilder()
         .setAuthor({ name: author.username || 'مستخدم', iconURL: author.displayAvatarURL ? author.displayAvatarURL() : undefined })
@@ -191,7 +224,7 @@ function buildSuggestionMenu(threadUrl = null) {
 }
 
 // ==========================================
-// 5. Auth Setup
+// 5. Auth Setup (Passport & Login)
 // ==========================================
 const storage = multer.diskStorage({
     destination: './uploads/',
@@ -248,13 +281,41 @@ app.get('/logout', (req, res) => {
     req.logout(() => { res.redirect('/login'); });
 });
 
+app.get('/login', (req, res) => {
+    res.send(`<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8"><title>Abood System - تسجيل الدخول</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Cairo', sans-serif; background: #0b0f19; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-card { background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255,255,255,0.05); padding: 40px; border-radius: 20px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); width: 400px; }
+        h1 { margin-bottom: 10px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        p { color: #9ca3af; margin-bottom: 30px; font-size: 14px; }
+        .btn-discord { background: #5865F2; color: white; padding: 14px 25px; border-radius: 12px; text-decoration: none; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s; }
+        .btn-discord:hover { background: #4752C4; transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <i class="fas fa-robot fa-3x" style="color: #3b82f6; margin-bottom: 20px;"></i>
+        <h1>Abood System</h1>
+        <p>سجل دخولك عبر حساب ديسكورد لإدارة سيرفرك</p>
+        <a href="/auth/discord" class="btn-discord"><i class="fab fa-discord"></i> تسجيل الدخول بديسكورد</a>
+    </div>
+</body>
+</html>`);
+});
+
 // ==========================================
-// 6. UI Template (Abood System - Dark Animated Design)
+// 6. UI Template Generator
 // ==========================================
 function t(key, lang = 'ar') {
     const dict = {
         ar: {
             home: 'نظرة عامة',
+            suggestions: 'الاقتراحات',
             kick: 'بثوث كيك',
             logs: 'سجل اللوق',
             welcome: 'الترحيب',
@@ -263,13 +324,7 @@ function t(key, lang = 'ar') {
             giveaway: 'القيف اواي',
             tickets: 'التذاكر',
             levels: 'المستويات',
-            roles: 'الرتب الذاتية',
-            suggestions: 'الاقتراحات',
-            dashboard: 'لوحة التحكم',
-            logout: 'تسجيل الخروج',
-            save: 'حفظ التغييرات',
-            delete: 'حذف',
-            channel: 'القناة'
+            roles: 'الرتب الذاتية'
         }
     };
     return dict[lang]?.[key] || dict['ar'][key] || key;
@@ -400,7 +455,7 @@ app.get('/dashboard', checkAuth, (req, res) => {
 </html>`);
 });
 
-// --- [ Home / Stats ] ---
+// --- Home / Stats ---
 app.get('/manage/:guildId/home', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -426,7 +481,7 @@ app.get('/manage/:guildId/home', checkGuildAdmin, async (req, res) => {
     res.send(ui(g, 'home', content));
 });
 
-// --- [ Suggestions Dashboard Page ] ---
+// --- Suggestions Dashboard Page ---
 app.get('/manage/:guildId/suggestions', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -459,7 +514,7 @@ app.post('/save/:guildId/suggestions', checkGuildAdmin, async (req, res) => {
     res.redirect(`/manage/${req.params.guildId}/suggestions`);
 });
 
-// --- [ Kick Notifications ] ---
+// --- Kick Notifications ---
 app.get('/manage/:guildId/kick', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -518,7 +573,7 @@ app.get('/delete-kick/:guildId/:index', checkGuildAdmin, async (req, res) => {
     res.redirect(`/manage/${guildId}/kick`);
 });
 
-// --- [ Logs ] ---
+// --- Logs ---
 app.get('/manage/:guildId/logs', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -559,7 +614,7 @@ app.post('/save/:guildId/logs', checkGuildAdmin, async (req, res) => {
     res.redirect(`/manage/${req.params.guildId}/logs`);
 });
 
-// --- [ Welcome ] ---
+// --- Welcome ---
 app.get('/manage/:guildId/welcome', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -593,7 +648,7 @@ app.post('/save/:guildId/welcome', checkGuildAdmin, async (req, res) => {
     res.redirect(`/manage/${req.params.guildId}/welcome`);
 });
 
-// --- [ Security ] ---
+// --- Security ---
 app.get('/manage/:guildId/security', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -622,7 +677,7 @@ app.post('/save/:guildId/security', checkGuildAdmin, async (req, res) => {
     res.redirect(`/manage/${req.params.guildId}/security`);
 });
 
-// --- [ Auto Reply ] ---
+// --- Auto Reply ---
 app.get('/manage/:guildId/autoreply', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -660,7 +715,7 @@ app.post('/save/:guildId/autoreply', checkGuildAdmin, async (req, res) => {
     res.redirect(`/manage/${guildId}/autoreply`);
 });
 
-// --- [ Giveaway ] ---
+// --- Giveaway ---
 app.get('/manage/:guildId/giveaway', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -705,7 +760,7 @@ app.post('/save/:guildId/giveaway', checkGuildAdmin, async (req, res) => {
     res.redirect(`/manage/${g.id}/giveaway`);
 });
 
-// --- [ Tickets ] ---
+// --- Tickets ---
 app.get('/manage/:guildId/tickets', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -747,7 +802,7 @@ app.post('/save/:guildId/tickets', checkGuildAdmin, async (req, res) => {
     res.redirect(`/manage/${req.params.guildId}/tickets`);
 });
 
-// --- [ Levels ] ---
+// --- Levels ---
 app.get('/manage/:guildId/levels', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -776,7 +831,7 @@ app.post('/save/:guildId/levels', checkGuildAdmin, async (req, res) => {
     res.redirect(`/manage/${req.params.guildId}/levels`);
 });
 
-// --- [ Roles Panel ] ---
+// --- Roles Panel ---
 app.get('/manage/:guildId/roles', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -792,9 +847,8 @@ app.get('/ping', (req, res) => res.send('I am alive!'));
 app.get('/', (req, res) => res.redirect('/dashboard'));
 
 // ==========================================
-// 8. Discord Bot Event Handlers
+// 8. Discord Bot Event Handlers & Commands
 // ==========================================
-
 client.on('ready', async () => {
     console.log(`[BOT] Logged in as ${client.user.tag}`);
     client.user.setActivity('Abood System | /suggest', { type: ActivityType.Watching });
@@ -807,7 +861,6 @@ client.on('ready', async () => {
     }
 });
 
-// --- Message Handler ---
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
@@ -849,7 +902,6 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-// Slash Command handler
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'suggest') {
@@ -983,7 +1035,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// Reaction votes tracking
 client.on('messageReactionAdd', async (reaction, user) => {
     if (user.bot) return;
     if (reaction.partial) await reaction.fetch().catch(() => {});
@@ -1026,6 +1077,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
 // 9. Start Express & Bot
 // ==========================================
 client.login(process.env.DISCORD_TOKEN);
+app.login ? null : null;
 app.listen(Number(process.env.PORT || 3000), () => {
     console.log(`[Dashboard] Running on port ${process.env.PORT || 3000}`);
 });
