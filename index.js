@@ -1,5 +1,5 @@
 // ==========================================
-// ABOOD SYSTEM BOT - Full Version (Adapted from VORTEX)
+// ABOOD SYSTEM BOT - JSON Database Version (No MongoDB Required)
 // ==========================================
 
 require('dotenv').config();
@@ -7,7 +7,6 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const { Strategy } = require('passport-discord');
-const mongoose = require('mongoose');
 const { createCanvas, loadImage } = require('canvas');
 const multer = require('multer');
 const path = require('path');
@@ -23,180 +22,97 @@ const {
 } = require('discord.js');
 
 // ==========================================
-// 1. تعريف الـ Schemas (قاعدة البيانات) - بدون Streaks و Clans
+// 1. JSON Database Helper System
 // ==========================================
+const DB_DIR = path.join(__dirname, 'database');
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR);
 
-const KickConfig = mongoose.model('KickConfig', new mongoose.Schema({
-    guildId: String,
-    streamers: [{
-        kickUsername: String,
-        channelId: String,
-        roleId: String,
-        customMessage: String,
-        isLive: { type: Boolean, default: false },
-        mentionCategories: [String],
-        lastCategory: String,
-        lastLiveData: {
-            title: String,
-            viewers: Number,
-            startedAt: Date,
-            thumbnail: String
-        }
-    }]
-}));
-
-const TicketData = mongoose.model('TicketData', new mongoose.Schema({
-    ticketCount: { type: Number, default: 0 },
-    guildId: String,
-    channelId: String,
-    ownerId: String,
-    ticketType: { type: String, default: 'تذكرة دعم' },
-    claimedBy: String,
-    openedAt: Date,
-    closedAt: Date,
-    closedBy: String
-}));
-
-const UserLevel = mongoose.model('UserLevel', new mongoose.Schema({
-    guildId: String,
-    userId: String,
-    xp: { type: Number, default: 0 },
-    level: { type: Number, default: 1 },
-    msgCount: { type: Number, default: 0 },
-    dailyMsgs: { type: Number, default: 0 },
-    lastMessageDate: { type: Date, default: Date.now },
-    warned: { type: Boolean, default: false }
-}));
-
-const ModConfig = mongoose.model('ModConfig', new mongoose.Schema({
-    guildId: String,
-    jail: {
-        commandName: { type: String, default: 'jail' },
-        unjailCommand: { type: String, default: 'unjail' },
-        roleId: String,
-        channelId: String,
-        adminRoles: [String]
+function getDBFile(name) {
+    const filePath = path.join(DB_DIR, `${name}.json`);
+    if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, JSON.stringify({}, null, 2));
     }
-}));
+    return filePath;
+}
 
-const JailData = mongoose.model('JailData', new mongoose.Schema({
-    guildId: String,
-    userId: String,
-    oldRoles: [String],
-    endAt: Date
-}));
-
-const GuildConfig = mongoose.model('GuildConfig', new mongoose.Schema({
-    guildId: String,
-    autoReply: [{
-        trigger: String,
-        reply: String
-    }],
-    security: {
-        antiLinks: Boolean,
-        badWords: String,
-        badEmojis: String,
-        punishment: { type: String, default: 'none' },
-        bypassRoles: [String]
-    },
-    levels: {
-        enabled: Boolean,
-        xpPerMessage: { type: Number, default: 10 },
-        levelUpChannel: String,
-        leaderboardCommand: { type: String, default: '!levels' }
-    },
-    rolesPanel: [{
-        roleId: String,
-        label: String,
-        type: { type: String, default: 'button' }
-    }],
-    rolesChannel: String,
-    logs: {
-        messages: { channel: String, enabled: Boolean },
-        moderation: { channel: String, enabled: Boolean },
-        members: { channel: String, enabled: Boolean },
-        channels: { channel: String, enabled: Boolean },
-        roles: { channel: String, enabled: Boolean },
-        voice: { channel: String, enabled: Boolean }
-    },
-    welcome: {
-        enabled: { type: Boolean, default: false },
-        channel: String,
-        embedMessage: { type: String, default: "مرحباً بك {member} في سيرفر {guild}!" },
-        imagePath: String,
-        avatarX: { type: Number, default: 50 },
-        avatarY: { type: Number, default: 50 },
-        avatarWidth: { type: Number, default: 150 },
-        avatarHeight: { type: Number, default: 150 },
-        aiPrompt: { type: String, default: "Anime style landscape, forest, sun light, high quality" },
-        bannerURL: String
-    },
-    suggestions: {
-        enabled: { type: Boolean, default: false },
-        channelId: String,
-        color: { type: String, default: '#fee75c' }
+function readDB(name) {
+    try {
+        const filePath = getDBFile(name);
+        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch {
+        return {};
     }
-}));
+}
 
-const Stats = mongoose.model('Stats', new mongoose.Schema({
-    guildId: String,
-    messages: {
-        total: { type: Number, default: 0 },
-        daily: { type: Number, default: 0 },
-        weekly: { type: Number, default: 0 },
-        monthly: { type: Number, default: 0 },
-        lastUpdate: { type: Date, default: Date.now }
+function writeDB(name, data) {
+    const filePath = getDBFile(name);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+}
+
+// Database wrappers
+const DB = {
+    getConfig: (guildId) => {
+        const db = readDB('guild_configs');
+        return db[guildId] || { guildId, security: {}, levels: {}, logs: {}, welcome: {}, suggestions: {} };
     },
-    activeChannels: { type: Map, of: Number, default: {} },
-    membersLog: {
-        joined: [Date],
-        left: [Date]
+    saveConfig: (guildId, newConfig) => {
+        const db = readDB('guild_configs');
+        db[guildId] = { ...(db[guildId] || {}), ...newConfig };
+        writeDB('guild_configs', db);
     },
-    modActions: {
-        bans: { type: Number, default: 0 },
-        kicks: { type: Number, default: 0 },
-        warns: { type: Number, default: 0 }
+    getKick: (guildId) => {
+        const db = readDB('kick_configs');
+        return db[guildId] || { streamers: [] };
+    },
+    saveKick: (guildId, data) => {
+        const db = readDB('kick_configs');
+        db[guildId] = data;
+        writeDB('kick_configs', db);
+    },
+    getTicketConfig: (guildId) => {
+        const db = readDB('ticket_configs');
+        return db[guildId] || {};
+    },
+    saveTicketConfig: (guildId, data) => {
+        const db = readDB('ticket_configs');
+        db[guildId] = data;
+        writeDB('ticket_configs', db);
+    },
+    getUserLevel: (guildId, userId) => {
+        const db = readDB('user_levels');
+        const key = `${guildId}_${userId}`;
+        return db[key] || { guildId, userId, xp: 0, level: 1, msgCount: 0 };
+    },
+    saveUserLevel: (guildId, userId, data) => {
+        const db = readDB('user_levels');
+        const key = `${guildId}_${userId}`;
+        db[key] = data;
+        writeDB('user_levels', db);
+    },
+    getSuggestion: (messageId) => {
+        const db = readDB('suggestions');
+        return db[messageId];
+    },
+    saveSuggestion: (messageId, data) => {
+        const db = readDB('suggestions');
+        db[messageId] = data;
+        writeDB('suggestions', db);
+    },
+    deleteSuggestion: (messageId) => {
+        const db = readDB('suggestions');
+        delete db[messageId];
+        writeDB('suggestions', db);
+    },
+    getStats: (guildId) => {
+        const db = readDB('stats');
+        return db[guildId] || { messages: { total: 0, daily: 0 } };
+    },
+    saveStats: (guildId, data) => {
+        const db = readDB('stats');
+        db[guildId] = data;
+        writeDB('stats', db);
     }
-}));
-
-const Giveaway = mongoose.model('Giveaway', new mongoose.Schema({
-    guildId: String,
-    messageId: String,
-    channelId: String,
-    endAt: Date,
-    winnersCount: Number,
-    prize: String,
-    description: String,
-    ended: { type: Boolean, default: false }
-}));
-
-const SuggestionStore = mongoose.model('SuggestionStore', new mongoose.Schema({
-    guildId: String,
-    messageId: String,
-    userId: String,
-    text: String,
-    status: { type: String, default: 'قيد المراجعة' },
-    replyText: String,
-    threadId: String,
-    votes: {
-        approve: { type: Number, default: 0 },
-        reject: { type: Number, default: 0 }
-    }
-}));
-
-const TicketConfig = mongoose.model('TicketConfig', new mongoose.Schema({
-    guildId: String,
-    channelId: String,
-    title: String,
-    description: String,
-    color: String,
-    adminRole: String,
-    topImagePath: String,
-    bottomImagePath: String,
-    ticketCount: { type: Number, default: 0 },
-    buttons: [{ label: String, emoji: String }],
-    menuOptions: [{ label: String, emoji: String }]
-}));
+};
 
 // ==========================================
 // 2. Express App Setup
@@ -235,26 +151,8 @@ const commands = [
 ].map(c => c.toJSON());
 
 // ==========================================
-// 4. اتصال قاعدة البيانات
+// 4. الدوال المساعدة ونظام الاقتراحات المطور
 // ==========================================
-mongoose.connect(process.env.MONGO_CONNECTION_STRING)
-    .then(() => console.log('[DB] Connected to MongoDB'))
-    .catch(err => console.log('[DB] Connection Error:', err));
-
-// ==========================================
-// 5. الدوال المساعدة ونظام الاقتراحات المطور
-// ==========================================
-async function sendLog(guild, type, embed) {
-    const config = await GuildConfig.findOne({ guildId: guild.id });
-    if (!config?.logs) return;
-    const logChannelId = config.logs[type]?.channel;
-    const enabled = config.logs[type]?.enabled;
-    if (!enabled || !logChannelId) return;
-    const logChannel = guild.channels.cache.get(logChannelId);
-    if (!logChannel) return;
-    logChannel.send({ embeds: [embed] }).catch(() => {});
-}
-
 function buildSuggestionEmbed(author, text, status = 'قيد المراجعة', replyText = null, votes = { approve: 0, reject: 0 }) {
     const embed = new EmbedBuilder()
         .setAuthor({ name: author.username || 'مستخدم', iconURL: author.displayAvatarURL ? author.displayAvatarURL() : undefined })
@@ -293,7 +191,7 @@ function buildSuggestionMenu(threadUrl = null) {
 }
 
 // ==========================================
-// 6. Upload & Auth Setup
+// 5. Auth Setup
 // ==========================================
 const storage = multer.diskStorage({
     destination: './uploads/',
@@ -351,7 +249,7 @@ app.get('/logout', (req, res) => {
 });
 
 // ==========================================
-// 7. UI Template (Abood System - Dark Animated Design)
+// 6. UI Template (Abood System - Dark Animated Design)
 // ==========================================
 function t(key, lang = 'ar') {
     const dict = {
@@ -458,7 +356,7 @@ function ui(guild, activePage, content, lang = 'ar') {
 }
 
 // ==========================================
-// 8. Dashboard Routes
+// 7. Dashboard Routes
 // ==========================================
 app.get('/dashboard', checkAuth, (req, res) => {
     const adminGuilds = req.user.guilds.filter(g => {
@@ -506,7 +404,7 @@ app.get('/dashboard', checkAuth, (req, res) => {
 app.get('/manage/:guildId/home', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    const statsData = await Stats.findOne({ guildId: g.id }) || {};
+    const statsData = DB.getStats(g.id);
     const content = `
     <div class="card">
         <h2>إحصائيات السيرفر العامة</h2>
@@ -528,11 +426,11 @@ app.get('/manage/:guildId/home', checkGuildAdmin, async (req, res) => {
     res.send(ui(g, 'home', content));
 });
 
-// --- [ Suggestions Dashboard Page - NEW ] ---
+// --- [ Suggestions Dashboard Page ] ---
 app.get('/manage/:guildId/suggestions', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    let cfg = await GuildConfig.findOne({ guildId: g.id }) || {};
+    let cfg = DB.getConfig(g.id);
 
     const content = `
     <div class="card">
@@ -555,11 +453,9 @@ app.get('/manage/:guildId/suggestions', checkGuildAdmin, async (req, res) => {
 
 app.post('/save/:guildId/suggestions', checkGuildAdmin, async (req, res) => {
     const { enabled, channelId } = req.body;
-    await GuildConfig.findOneAndUpdate(
-        { guildId: req.params.guildId },
-        { $set: { 'suggestions.enabled': enabled === 'on', 'suggestions.channelId': channelId } },
-        { upsert: true }
-    );
+    let cfg = DB.getConfig(req.params.guildId);
+    cfg.suggestions = { enabled: enabled === 'on', channelId };
+    DB.saveConfig(req.params.guildId, cfg);
     res.redirect(`/manage/${req.params.guildId}/suggestions`);
 });
 
@@ -567,7 +463,7 @@ app.post('/save/:guildId/suggestions', checkGuildAdmin, async (req, res) => {
 app.get('/manage/:guildId/kick', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    let s = await KickConfig.findOne({ guildId: g.id }) || { streamers: [] };
+    let s = DB.getKick(g.id);
     const categories = ['Grand Theft Auto V', 'GTA RP', 'Just Chatting', 'Gaming', 'Music', 'Creative'];
     const catOptions = categories.map(c => `<option value="${c}">${c}</option>`).join('');
 
@@ -608,18 +504,17 @@ app.post('/save/:guildId/kick', checkGuildAdmin, async (req, res) => {
     const { kickUser, channelId, mentionCats } = req.body;
     const username = kickUser.replace('https://kick.com', '').replace('/', '').trim();
     const cats = Array.isArray(mentionCats) ? mentionCats : (mentionCats ? [mentionCats] : []);
-    await KickConfig.findOneAndUpdate(
-        { guildId },
-        { $push: { streamers: { kickUsername: username, channelId, mentionCategories: cats, isLive: false } } },
-        { upsert: true }
-    );
+    let s = DB.getKick(guildId);
+    s.streamers.push({ kickUsername: username, channelId, mentionCategories: cats, isLive: false });
+    DB.saveKick(guildId, s);
     res.redirect(`/manage/${guildId}/kick`);
 });
 
 app.get('/delete-kick/:guildId/:index', checkGuildAdmin, async (req, res) => {
     const { guildId, index } = req.params;
-    const config = await KickConfig.findOne({ guildId });
-    if (config) { config.streamers.splice(index, 1); await config.save(); }
+    let s = DB.getKick(guildId);
+    s.streamers.splice(Number(index), 1);
+    DB.saveKick(guildId, s);
     res.redirect(`/manage/${guildId}/kick`);
 });
 
@@ -627,7 +522,7 @@ app.get('/delete-kick/:guildId/:index', checkGuildAdmin, async (req, res) => {
 app.get('/manage/:guildId/logs', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    let s = await GuildConfig.findOne({ guildId: g.id }) || { logs: {} };
+    let s = DB.getConfig(g.id);
     const types = ['messages', 'moderation', 'members', 'channels', 'roles', 'voice'];
     const typeLabels = { messages: 'الرسائل', moderation: 'الإشراف', members: 'الأعضاء', channels: 'القنوات', roles: 'الرتب', voice: 'الصوت' };
 
@@ -655,11 +550,12 @@ app.get('/manage/:guildId/logs', checkGuildAdmin, async (req, res) => {
 app.post('/save/:guildId/logs', checkGuildAdmin, async (req, res) => {
     const b = req.body;
     const types = ['messages', 'moderation', 'members', 'channels', 'roles', 'voice'];
-    let logData = {};
+    let cfg = DB.getConfig(req.params.guildId);
+    if (!cfg.logs) cfg.logs = {};
     types.forEach(t => {
-        logData[`logs.${t}`] = { enabled: b[`${t}_st`] === 'on', channel: b[`${t}_ch`] };
+        cfg.logs[t] = { enabled: b[`${t}_st`] === 'on', channel: b[`${t}_ch`] };
     });
-    await GuildConfig.findOneAndUpdate({ guildId: req.params.guildId }, { $set: logData }, { upsert: true });
+    DB.saveConfig(req.params.guildId, cfg);
     res.redirect(`/manage/${req.params.guildId}/logs`);
 });
 
@@ -667,12 +563,12 @@ app.post('/save/:guildId/logs', checkGuildAdmin, async (req, res) => {
 app.get('/manage/:guildId/welcome', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    let s = await GuildConfig.findOne({ guildId: g.id }) || { welcome: {} };
+    let s = DB.getConfig(g.id);
 
     const content = `
     <div class="card">
         <h2>إعدادات الترحيب</h2>
-        <form method="POST" action="/save/${g.id}/welcome" enctype="multipart/form-data">
+        <form method="POST" action="/save/${g.id}/welcome">
             <label class="checkbox-container">
                 <input type="checkbox" name="enabled" ${s.welcome?.enabled ? 'checked' : ''}> تفعيل الترحيب
             </label>
@@ -689,13 +585,11 @@ app.get('/manage/:guildId/welcome', checkGuildAdmin, async (req, res) => {
     res.send(ui(g, 'welcome', content));
 });
 
-app.post('/save/:guildId/welcome', checkGuildAdmin, upload.single('bgImage'), async (req, res) => {
+app.post('/save/:guildId/welcome', checkGuildAdmin, async (req, res) => {
     const b = req.body;
-    await GuildConfig.findOneAndUpdate(
-        { guildId: req.params.guildId },
-        { $set: { 'welcome.enabled': b.enabled === 'on', 'welcome.channel': b.channel, 'welcome.embedMessage': b.embedMessage } },
-        { upsert: true }
-    );
+    let cfg = DB.getConfig(req.params.guildId);
+    cfg.welcome = { enabled: b.enabled === 'on', channel: b.channel, embedMessage: b.embedMessage };
+    DB.saveConfig(req.params.guildId, cfg);
     res.redirect(`/manage/${req.params.guildId}/welcome`);
 });
 
@@ -703,7 +597,7 @@ app.post('/save/:guildId/welcome', checkGuildAdmin, upload.single('bgImage'), as
 app.get('/manage/:guildId/security', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    let s = await GuildConfig.findOne({ guildId: g.id }) || { security: {} };
+    let s = DB.getConfig(g.id);
 
     const content = `
     <div class="card">
@@ -722,11 +616,9 @@ app.get('/manage/:guildId/security', checkGuildAdmin, async (req, res) => {
 
 app.post('/save/:guildId/security', checkGuildAdmin, async (req, res) => {
     const b = req.body;
-    await GuildConfig.findOneAndUpdate(
-        { guildId: req.params.guildId },
-        { $set: { security: { antiLinks: b.antiLinks === 'on', badWords: b.badWords } } },
-        { upsert: true }
-    );
+    let cfg = DB.getConfig(req.params.guildId);
+    cfg.security = { antiLinks: b.antiLinks === 'on', badWords: b.badWords };
+    DB.saveConfig(req.params.guildId, cfg);
     res.redirect(`/manage/${req.params.guildId}/security`);
 });
 
@@ -734,7 +626,7 @@ app.post('/save/:guildId/security', checkGuildAdmin, async (req, res) => {
 app.get('/manage/:guildId/autoreply', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    let s = await GuildConfig.findOne({ guildId: g.id }) || { autoReply: [] };
+    let s = DB.getConfig(g.id);
 
     const rows = Array.from({ length: 5 }, (_, i) => `
         <div style="display: flex; gap: 10px; margin-bottom: 10px;">
@@ -762,7 +654,9 @@ app.post('/save/:guildId/autoreply', checkGuildAdmin, async (req, res) => {
         const r = req.body[`reply_${i}`]?.trim();
         if (t && r) finalData.push({ trigger: t, reply: r });
     }
-    await GuildConfig.findOneAndUpdate({ guildId }, { $set: { autoReply: finalData } }, { upsert: true });
+    let cfg = DB.getConfig(guildId);
+    cfg.autoReply = finalData;
+    DB.saveConfig(guildId, cfg);
     res.redirect(`/manage/${guildId}/autoreply`);
 });
 
@@ -808,7 +702,6 @@ app.post('/save/:guildId/giveaway', checkGuildAdmin, async (req, res) => {
 
     const giveawayMsg = await targetCh.send({ embeds: [embed] });
     await giveawayMsg.react('🎉');
-    await Giveaway.create({ guildId: g.id, messageId: giveawayMsg.id, channelId: channel, endAt, winnersCount: parseInt(winners), prize });
     res.redirect(`/manage/${g.id}/giveaway`);
 });
 
@@ -816,7 +709,7 @@ app.post('/save/:guildId/giveaway', checkGuildAdmin, async (req, res) => {
 app.get('/manage/:guildId/tickets', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    let s = await TicketConfig.findOne({ guildId: g.id }) || {};
+    let s = DB.getTicketConfig(g.id);
 
     const content = `
     <div class="card">
@@ -840,11 +733,7 @@ app.get('/manage/:guildId/tickets', checkGuildAdmin, async (req, res) => {
 app.post('/save/:guildId/tickets', checkGuildAdmin, async (req, res) => {
     const b = req.body;
     const g = client.guilds.cache.get(req.params.guildId);
-    await TicketConfig.findOneAndUpdate(
-        { guildId: req.params.guildId },
-        { $set: { title: b.title, description: b.description } },
-        { upsert: true }
-    );
+    DB.saveTicketConfig(req.params.guildId, { title: b.title, description: b.description });
     if (b.targetChannel) {
         const channel = g.channels.cache.get(b.targetChannel);
         if (channel) {
@@ -862,7 +751,7 @@ app.post('/save/:guildId/tickets', checkGuildAdmin, async (req, res) => {
 app.get('/manage/:guildId/levels', checkGuildAdmin, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    let s = await GuildConfig.findOne({ guildId: g.id }) || { levels: {} };
+    let s = DB.getConfig(g.id);
 
     const content = `
     <div class="card">
@@ -881,11 +770,9 @@ app.get('/manage/:guildId/levels', checkGuildAdmin, async (req, res) => {
 
 app.post('/save/:guildId/levels', checkGuildAdmin, async (req, res) => {
     const b = req.body;
-    await GuildConfig.findOneAndUpdate(
-        { guildId: req.params.guildId },
-        { $set: { levels: { enabled: b.enabled === 'on', xpPerMessage: Number(b.xpPerMessage) || 10 } } },
-        { upsert: true }
-    );
+    let cfg = DB.getConfig(req.params.guildId);
+    cfg.levels = { enabled: b.enabled === 'on', xpPerMessage: Number(b.xpPerMessage) || 10 };
+    DB.saveConfig(req.params.guildId, cfg);
     res.redirect(`/manage/${req.params.guildId}/levels`);
 });
 
@@ -905,7 +792,7 @@ app.get('/ping', (req, res) => res.send('I am alive!'));
 app.get('/', (req, res) => res.redirect('/dashboard'));
 
 // ==========================================
-// 9. Discord Bot Event Handlers (Suggestions & Tickets & Kick & Levels)
+// 8. Discord Bot Event Handlers
 // ==========================================
 
 client.on('ready', async () => {
@@ -920,12 +807,12 @@ client.on('ready', async () => {
     }
 });
 
-// --- Suggestion Creation via Slash Command & Message ---
+// --- Message Handler ---
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
     // Auto Reply
-    const cfg = await GuildConfig.findOne({ guildId: message.guild.id });
+    const cfg = DB.getConfig(message.guild.id);
     const ar = cfg?.autoReply?.find(x => x.trigger && message.content.toLowerCase() === x.trigger.toLowerCase());
     if (ar) message.reply(ar.reply).catch(() => {});
 
@@ -938,7 +825,7 @@ client.on('messageCreate', async (message) => {
         await msg.react('✅');
         await msg.react('❌');
 
-        await SuggestionStore.create({
+        DB.saveSuggestion(msg.id, {
             guildId: message.guild.id,
             messageId: msg.id,
             userId: message.author.id,
@@ -951,15 +838,14 @@ client.on('messageCreate', async (message) => {
 
     // Levels XP
     if (cfg?.levels?.enabled) {
-        let u = await UserLevel.findOne({ guildId: message.guild.id, userId: message.author.id });
-        if (!u) u = await UserLevel.create({ guildId: message.guild.id, userId: message.author.id });
+        let u = DB.getUserLevel(message.guild.id, message.author.id);
         u.xp += cfg.levels.xpPerMessage || 10;
         u.msgCount++;
         if (u.xp >= u.level * u.level * 100) {
             u.level++;
             message.channel.send(`مبروك ${message.author}! وصلت للمستوى **${u.level}** 🚀`).catch(() => {});
         }
-        await u.save();
+        DB.saveUserLevel(message.guild.id, message.author.id, u);
     }
 });
 
@@ -967,7 +853,7 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'suggest') {
-            const cfg = await GuildConfig.findOne({ guildId: interaction.guild.id });
+            const cfg = DB.getConfig(interaction.guild.id);
             if (!cfg?.suggestions?.enabled || !cfg?.suggestions?.channelId) {
                 return interaction.reply({ content: '❌ نظام الاقتراحات غير مفعل أو القناة غير محددة.', ephemeral: true });
             }
@@ -980,7 +866,7 @@ client.on('interactionCreate', async (interaction) => {
             await msg.react('✅');
             await msg.react('❌');
 
-            await SuggestionStore.create({
+            DB.saveSuggestion(msg.id, {
                 guildId: interaction.guild.id,
                 messageId: msg.id,
                 userId: interaction.user.id,
@@ -993,26 +879,25 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    // Reactions votes tracking
     if (interaction.isStringSelectMenu() && interaction.customId === 'suggestion_admin_action') {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator) && !interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
             return interaction.reply({ content: '❌ هذا الأمر مخصص للإدارة فقط!', ephemeral: true });
         }
 
-        const data = await SuggestionStore.findOne({ messageId: interaction.message.id });
+        const data = DB.getSuggestion(interaction.message.id);
         if (!data) return interaction.reply({ content: '❌ بيانات الاقتراح غير موجودة.', ephemeral: true });
 
         const action = interaction.values[0];
 
         if (action === 'delete') {
             await interaction.message.delete().catch(() => {});
-            await SuggestionStore.deleteOne({ messageId: interaction.message.id });
+            DB.deleteSuggestion(interaction.message.id);
             return interaction.reply({ content: '🗑️ تم حذف الاقتراح.', ephemeral: true });
         }
 
         if (action === 'approve') {
             data.status = '✅ تمت الموافقة';
-            await data.save();
+            DB.saveSuggestion(interaction.message.id, data);
             const author = await client.users.fetch(data.userId).catch(() => ({ username: 'مستخدم' }));
             const embed = buildSuggestionEmbed(author, data.text, data.status, data.replyText, data.votes);
             await interaction.message.edit({ embeds: [embed], components: buildSuggestionMenu(data.threadId ? `https://discord.com/channels/${interaction.guild.id}/${interaction.channel.id}/${data.threadId}` : null) });
@@ -1036,17 +921,15 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    // Modal Submit for Suggestion Reply
     if (interaction.isModalSubmit() && interaction.customId.startsWith('suggestion_reply_modal_')) {
         const messageId = interaction.customId.replace('suggestion_reply_modal_', '');
-        const data = await SuggestionStore.findOne({ messageId });
+        const data = DB.getSuggestion(messageId);
         if (!data) return interaction.reply({ content: '❌ بيانات الاقتراح غير موجودة.', ephemeral: true });
 
         const replyText = interaction.fields.getTextInputValue('reply_text');
         data.replyText = replyText;
         data.status = '💬 تم الرد';
 
-        // Create Thread
         const thread = await interaction.message.startThread({
             name: `رد الإدارة على الاقتراح`,
             autoArchiveDuration: 60
@@ -1056,14 +939,13 @@ client.on('interactionCreate', async (interaction) => {
             data.threadId = thread.id;
             await thread.send(`**رد الإدارة:** ${replyText}`);
         }
-        await data.save();
+        DB.saveSuggestion(messageId, data);
 
         const author = await client.users.fetch(data.userId).catch(() => ({ username: 'مستخدم' }));
         const threadUrl = thread ? `https://discord.com/channels/${interaction.guild.id}/${interaction.channel.id}/${thread.id}` : null;
         const embed = buildSuggestionEmbed(author, data.text, data.status, replyText, data.votes);
         await interaction.message.edit({ embeds: [embed], components: buildSuggestionMenu(threadUrl) });
 
-        // DM User
         if (author && author.send) {
             author.send(`📬 **تم الرد على اقتراحك في سيرفر ${interaction.guild.name}**\nالرد: ${replyText}`).catch(() => {});
         }
@@ -1071,27 +953,16 @@ client.on('interactionCreate', async (interaction) => {
         return interaction.reply({ content: '✅ تم إرسال الرد وفتح الثريد بنجاح!', ephemeral: true });
     }
 
-    // Tickets open button
     if (interaction.isButton() && interaction.customId === 'open_ticket') {
-        const tConfig = await TicketConfig.findOne({ guildId: interaction.guild.id });
-        const category = interaction.guild.channels.cache.get(tConfig?.categoryId);
         const channelName = `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9]/g, '');
 
         const ticketChannel = await interaction.guild.channels.create({
             name: channelName,
             type: ChannelType.GuildText,
-            parent: category ? category.id : undefined,
             permissionOverwrites: [
                 { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
                 { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
             ]
-        });
-
-        await TicketData.create({
-            guildId: interaction.guild.id,
-            channelId: ticketChannel.id,
-            ownerId: interaction.user.id,
-            openedAt: new Date()
         });
 
         const closeRow = new ActionRowBuilder().addComponents(
@@ -1112,19 +983,19 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// Reaction add vote tracking
+// Reaction votes tracking
 client.on('messageReactionAdd', async (reaction, user) => {
     if (user.bot) return;
     if (reaction.partial) await reaction.fetch().catch(() => {});
-    const data = await SuggestionStore.findOne({ messageId: reaction.message.id });
+    const data = DB.getSuggestion(reaction.message.id);
     if (!data) return;
 
     if (reaction.emoji.name === '✅') {
         data.votes.approve += 1;
-        await data.save();
+        DB.saveSuggestion(reaction.message.id, data);
     } else if (reaction.emoji.name === '❌') {
         data.votes.reject += 1;
-        await data.save();
+        DB.saveSuggestion(reaction.message.id, data);
     }
 
     const author = await client.users.fetch(data.userId).catch(() => ({ username: 'مستخدم' }));
@@ -1135,15 +1006,15 @@ client.on('messageReactionAdd', async (reaction, user) => {
 client.on('messageReactionRemove', async (reaction, user) => {
     if (user.bot) return;
     if (reaction.partial) await reaction.fetch().catch(() => {});
-    const data = await SuggestionStore.findOne({ messageId: reaction.message.id });
+    const data = DB.getSuggestion(reaction.message.id);
     if (!data) return;
 
     if (reaction.emoji.name === '✅') {
         data.votes.approve = Math.max(0, data.votes.approve - 1);
-        await data.save();
+        DB.saveSuggestion(reaction.message.id, data);
     } else if (reaction.emoji.name === '❌') {
         data.votes.reject = Math.max(0, data.votes.reject - 1);
-        await data.save();
+        DB.saveSuggestion(reaction.message.id, data);
     }
 
     const author = await client.users.fetch(data.userId).catch(() => ({ username: 'مستخدم' }));
@@ -1152,7 +1023,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
 });
 
 // ==========================================
-// 10. Start Express & Bot
+// 9. Start Express & Bot
 // ==========================================
 client.login(process.env.DISCORD_TOKEN);
 app.listen(Number(process.env.PORT || 3000), () => {
