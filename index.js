@@ -1,5 +1,5 @@
 // ==========================================
-// ABOOD SYSTEM BOT - Final Updated Version
+// ABOOD SYSTEM BOT - Ultimate Full Version (Updated & Expanded)
 // ==========================================
 
 require('dotenv').config();
@@ -7,6 +7,7 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const { Strategy } = require('passport-discord');
+const { createCanvas, loadImage } = require('canvas');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -17,7 +18,7 @@ const {
     AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
     StringSelectMenuBuilder, UserSelectMenuBuilder, ChannelType, PermissionFlagsBits,
     ModalBuilder, TextInputBuilder, TextInputStyle, ActivityType,
-    REST, Routes, SlashCommandBuilder, Events
+    REST, Routes, SlashCommandBuilder
 } = require('discord.js');
 
 // ==========================================
@@ -110,7 +111,7 @@ const DB = {
         delete db[messageId];
         writeDB('suggestions', db);
     },
-    getGiveaways: () => readDB('giveaways'),
+    getGiveaways: () => readDB('giveaways') || {},
     saveGiveaway: (id, data) => {
         const db = readDB('giveaways');
         db[id] = data;
@@ -141,11 +142,12 @@ app.use(express.json());
 app.set('trust proxy', 1);
 app.set('view engine', 'ejs');
 
-if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR);
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 const storage = multer.diskStorage({
-    destination: './uploads/',
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
     filename: (req, file, cb) => {
         cb(null, Date.now() + path.extname(file.originalname));
     }
@@ -175,7 +177,7 @@ const commands = [
 ].map(c => c.toJSON());
 
 // ==========================================
-// 4. Auth Setup
+// 4. Auth Setup (Passport & Login)
 // ==========================================
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
@@ -205,6 +207,7 @@ const checkAuth = (req, res, next) => {
 const checkGuildAdmin = (req, res, next) => {
     if (!req.isAuthenticated()) return res.redirect('/login');
     const guildId = req.params.guildId;
+    if (!guildId) return next();
     const userGuild = req.user.guilds.find(g => g.id === guildId);
     if (!userGuild) return res.status(403).send('Forbidden');
     const p = BigInt(userGuild.permissions);
@@ -216,6 +219,10 @@ app.get('/auth/discord', passport.authenticate('discord'));
 app.get('/callback', passport.authenticate('discord', { failureRedirect: '/login' }), (req, res) => {
     res.redirect('/dashboard');
 });
+app.get('/logout', (req, res) => {
+    req.logout(() => { res.redirect('/login'); });
+});
+
 app.get('/login', (req, res) => {
     res.send(`<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -225,8 +232,8 @@ app.get('/login', (req, res) => {
     <style>
         body { font-family: 'Cairo', sans-serif; background: #0b0f19; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .login-card { background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255,255,255,0.05); padding: 40px; border-radius: 20px; text-align: center; width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
-        .btn-discord { background: #5865F2; color: white; padding: 14px 25px; border-radius: 12px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 20px; transition: 0.3s; }
-        .btn-discord:hover { background: #4752C4; transform: translateY(-2px); }
+        h1 { margin-bottom: 10px; color: #3b82f6; }
+        .btn-discord { background: #5865F2; color: white; padding: 14px 25px; border-radius: 12px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -240,7 +247,7 @@ app.get('/login', (req, res) => {
 });
 
 // ==========================================
-// 5. UI Template Generator
+// 5. UI Template Generator (VORTEX Style)
 // ==========================================
 function ui(guild, activePage, content) {
     const pages = [
@@ -267,29 +274,31 @@ function ui(guild, activePage, content) {
 <head>
     <meta charset="UTF-8">
     <title>Abood System - ${guild.name}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; }
-        body { background-color: #0b0f19; color: #f3f4f6; display: flex; min-height: 100vh; }
-        .sidebar { width: 280px; background: #111827; display: flex; flex-direction: column; border-left: 1px solid #1f2937; position: fixed; height: 100vh; }
+        body { background-color: #0b0f19; color: #f3f4f6; display: flex; min-height: 100vh; overflow-x: hidden; }
+        .sidebar { width: 280px; background: rgba(17, 24, 39, 0.95); border-left: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; }
+        .sidebar-brand { padding: 25px; border-bottom: 1px solid rgba(255,255,255,0.05); text-align: center; }
+        .sidebar-brand h2 { color: #3b82f6; }
         .nav-item { padding: 15px 25px; color: #9ca3af; text-decoration: none; display: flex; align-items: center; gap: 15px; transition: 0.3s; }
-        .nav-item:hover, .nav-item.active { background: #1f2937; color: #3b82f6; border-right: 4px solid #3b82f6; }
+        .nav-item:hover, .nav-item.active { background: rgba(59, 130, 246, 0.1); color: #3b82f6; border-right: 4px solid #3b82f6; }
         .main { flex: 1; margin-right: 280px; padding: 40px; }
-        .card { background: #111827; padding: 30px; border-radius: 15px; border: 1px solid #1f2937; margin-bottom: 30px; }
-        .form-control { width: 100%; padding: 12px; background: #1f2937; border: 1px solid #374151; border-radius: 8px; color: white; margin-bottom: 20px; }
-        .btn { background: #3b82f6; color: white; padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .btn:hover { background: #2563eb; }
-        label { display: block; margin-bottom: 8px; font-weight: 600; color: #9ca3af; }
-        .checkbox-container { display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 20px; color: white; }
+        .card { background: rgba(17, 24, 39, 0.8); padding: 30px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 30px; }
+        .form-control { width: 100%; padding: 12px; background: #1f2937; border: 1px solid #374151; border-radius: 10px; color: white; margin-bottom: 20px; font-size: 14px; }
+        .btn { background: #3b82f6; color: white; padding: 12px 25px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn:hover { background: #2563eb; transform: translateY(-2px); }
+        .btn-danger { background: #ef4444; }
+        label { display: block; margin-bottom: 10px; font-weight: 600; color: #d1d5db; }
+        .checkbox-container { display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 20px; }
     </style>
 </head>
 <body>
     <div class="sidebar">
-        <div style="padding: 25px; text-align: center; border-bottom: 1px solid #1f2937;">
-            <h2 style="color: #3b82f6;">Abood System</h2>
-        </div>
+        <div class="sidebar-brand"><h2>Abood System</h2></div>
         ${navItems}
+        <a href="/logout" class="nav-item" style="margin-top: auto; border-top: 1px solid rgba(255,255,255,0.05);"><i class="fas fa-sign-out-alt"></i><span>تسجيل الخروج</span></a>
     </div>
     <div class="main">
         ${content}
@@ -299,8 +308,10 @@ function ui(guild, activePage, content) {
 }
 
 // ==========================================
-// 6. Dashboard Routes
+// 6. Routes & Logic
 // ==========================================
+
+app.get('/', (req, res) => res.redirect('/dashboard'));
 
 app.get('/dashboard', checkAuth, (req, res) => {
     const adminGuilds = req.user.guilds.filter(g => {
@@ -325,11 +336,11 @@ app.get('/manage/:guildId/home', checkGuildAdmin, (req, res) => {
     if (!g) return res.redirect('/dashboard');
     const stats = DB.getStats(g.id);
     res.send(ui(g, 'home', `
-        <h1>مرحباً بك في لوحة تحكم ${g.name}</h1>
+        <h1>نظرة عامة - ${g.name}</h1>
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 30px;">
-            <div class="card" style="text-align: center;"><h3>إجمالي الرسائل</h3><p style="font-size: 24px; color: #3b82f6;">${stats.messages.total}</p></div>
-            <div class="card" style="text-align: center;"><h3>رسائل اليوم</h3><p style="font-size: 24px; color: #3b82f6;">${stats.messages.daily}</p></div>
+            <div class="card" style="text-align: center;"><h3>الرسائل</h3><p style="font-size: 24px; color: #3b82f6;">${stats.messages.total}</p></div>
             <div class="card" style="text-align: center;"><h3>الأعضاء</h3><p style="font-size: 24px; color: #3b82f6;">${g.memberCount}</p></div>
+            <div class="card" style="text-align: center;"><h3>القنوات</h3><p style="font-size: 24px; color: #3b82f6;">${g.channels.cache.size}</p></div>
         </div>
     `));
 });
@@ -343,7 +354,7 @@ app.get('/manage/:guildId/suggestions', checkGuildAdmin, (req, res) => {
         <h2>إعدادات الاقتراحات</h2>
         <form method="POST" action="/save/${g.id}/suggestions" enctype="multipart/form-data">
             <label class="checkbox-container">
-                <input type="checkbox" name="enabled" ${s.suggestions?.enabled ? 'checked' : ''}> تفعيل الاقتراحات
+                <input type="checkbox" name="enabled" ${s.suggestions?.enabled ? 'checked' : ''}> تفعيل النظام
             </label>
             <label>قناة الاقتراحات:</label>
             <select name="channelId" class="form-control">
@@ -352,7 +363,7 @@ app.get('/manage/:guildId/suggestions', checkGuildAdmin, (req, res) => {
             <label>صورة الإمباد (رفع ملف):</label>
             <input type="file" name="image" class="form-control">
             ${s.suggestions?.image ? `<img src="${s.suggestions.image}" style="max-width: 300px; border-radius: 10px; margin-bottom: 10px; display: block;">` : ''}
-            <button type="submit" class="btn">حفظ الإعدادات</button>
+            <button type="submit" class="btn">حفظ</button>
         </form>
     </div>`;
     res.send(ui(g, 'suggestions', content));
@@ -389,7 +400,7 @@ app.get('/manage/:guildId/welcome', checkGuildAdmin, (req, res) => {
             <label>صورة الترحيب (رفع ملف):</label>
             <input type="file" name="image" class="form-control">
             ${s.welcome?.image ? `<img src="${s.welcome.image}" style="max-width: 300px; border-radius: 10px; margin-bottom: 10px; display: block;">` : ''}
-            <button type="submit" class="btn">حفظ الإعدادات</button>
+            <button type="submit" class="btn">حفظ</button>
         </form>
     </div>`;
     res.send(ui(g, 'welcome', content));
@@ -415,18 +426,18 @@ app.get('/manage/:guildId/kick', checkGuildAdmin, (req, res) => {
     <div class="card">
         <h2>إعدادات بثوث كيك (بدون إيموجي)</h2>
         <form method="POST" action="/save/${g.id}/kick">
-            <label>اسم المستخدم في Kick:</label>
-            <input type="text" name="kickUser" class="form-control" placeholder="مثال: streamername">
+            <label>يوزر Kick:</label>
+            <input type="text" name="kickUser" class="form-control" placeholder="streamername">
             <label>قناة التنبيه:</label>
             <select name="channelId" class="form-control">
                 ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}
             </select>
-            <button type="submit" class="btn">إضافة الستريمر</button>
+            <button type="submit" class="btn">إضافة</button>
         </form>
         <div style="margin-top: 20px;">
-            ${s.streamers.map((st, i) => `<div style="padding: 15px; background: #1f2937; margin-bottom: 10px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
-                <span>${st.kickUsername} -> القناة: <#${st.channelId}></span>
-                <a href="/delete-kick/${g.id}/${i}" class="btn btn-danger" style="text-decoration: none;">حذف</a>
+            ${s.streamers.map((st, i) => `<div style="padding: 10px; background: #1f2937; margin-bottom: 10px; border-radius: 10px; display: flex; justify-content: space-between;">
+                <span>${st.kickUsername} -> <#${st.channelId}></span>
+                <a href="/delete-kick/${g.id}/${i}" class="btn btn-danger" style="padding: 5px 10px;">حذف</a>
             </div>`).join('')}
         </div>
     </div>`;
@@ -456,9 +467,9 @@ app.get('/manage/:guildId/tickets', checkGuildAdmin, (req, res) => {
         const opt = s.options?.[i] || {};
         optionsRows += `
         <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-            <input type="text" name="opt_id_${i}" class="form-control" placeholder="ID (مثال: support)" value="${opt.id || ''}" style="margin:0;">
-            <input type="text" name="opt_label_${i}" class="form-control" placeholder="Label (مثال: دعم فني)" value="${opt.label || ''}" style="margin:0;">
-            <input type="text" name="opt_emoji_${i}" class="form-control" placeholder="Emoji (مثال: 🎫)" value="${opt.emoji || ''}" style="margin:0;">
+            <input type="text" name="opt_id_${i}" class="form-control" placeholder="ID" value="${opt.id || ''}" style="margin:0;">
+            <input type="text" name="opt_label_${i}" class="form-control" placeholder="Label" value="${opt.label || ''}" style="margin:0;">
+            <input type="text" name="opt_emoji_${i}" class="form-control" placeholder="Emoji" value="${opt.emoji || ''}" style="margin:0;">
         </div>`;
     }
 
@@ -485,7 +496,7 @@ app.get('/manage/:guildId/tickets', checkGuildAdmin, (req, res) => {
                 <option value="">-- لا ترسل الآن --</option>
                 ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}
             </select>
-            <button type="submit" class="btn">حفظ وإرسال اللوحة</button>
+            <button type="submit" class="btn">حفظ وإرسال</button>
         </form>
     </div>`;
     res.send(ui(g, 'tickets', content));
@@ -555,7 +566,7 @@ app.get('/manage/:guildId/levels', checkGuildAdmin, (req, res) => {
             </select>
             <label>رسالة الترقية ({user}, {level}):</label>
             <textarea name="message" class="form-control" placeholder="مبروك {user} وصلت للمستوى {level}">${s.levels?.message || ''}</textarea>
-            <button type="submit" class="btn">حفظ الإعدادات</button>
+            <button type="submit" class="btn">حفظ</button>
         </form>
     </div>`;
     res.send(ui(g, 'levels', content));
@@ -584,13 +595,13 @@ app.get('/manage/:guildId/security', checkGuildAdmin, (req, res) => {
             <label class="checkbox-container">
                 <input type="checkbox" name="antiLinks" ${s.security?.antiLinks ? 'checked' : ''}> حظر الروابط
             </label>
-            <label>الكلمات المحظورة (افصل بينها بفاصلة):</label>
+            <label>الكلمات المحظورة:</label>
             <input type="text" name="badWords" class="form-control" value="${s.security?.badWords || ''}">
             <label>رتب تتجاوز الحماية (Bypass):</label>
             <select name="bypassRoles" class="form-control" multiple style="height: 150px;">
                 ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.security?.bypassRoles?.includes(r.id) ? 'selected' : ''}>${r.name}</option>`).join('')}
             </select>
-            <button type="submit" class="btn">حفظ الإعدادات</button>
+            <button type="submit" class="btn">حفظ</button>
         </form>
     </div>`;
     res.send(ui(g, 'security', content));
@@ -706,13 +717,13 @@ app.post('/save/:guildId/giveaway', checkGuildAdmin, async (req, res) => {
 });
 
 // ==========================================
-// 7. Bot Logic & Events
+// 7. Bot Event Handlers
 // ==========================================
 
 client.on('ready', () => {
     console.log(`[BOT] ${client.user.tag} Ready`);
     
-    // Kick Stream Checker (No Emojis)
+    // Kick Stream Checker
     setInterval(async () => {
         const db = readDB('kick_configs');
         for (const guildId in db) {
@@ -791,7 +802,7 @@ client.on('messageCreate', async (message) => {
     stats.messages.daily++;
     DB.saveStats(message.guild.id, stats);
 
-    // Security (Bypass Logic)
+    // Security (Bypass Roles Check)
     const hasBypass = message.member.roles.cache.some(r => cfg.security?.bypassRoles?.includes(r.id));
     if (!hasBypass) {
         if (cfg.security?.antiLinks && /(https?:\/\/[^\s]+)/g.test(message.content)) {
@@ -893,27 +904,27 @@ client.on('interactionCreate', async (interaction) => {
         return interaction.reply({ content: `✅ تم فتح تذكرتك: ${channel}`, ephemeral: true });
     }
 
-    // Ticket Internal Menu
+    // Ticket Internal Menu Logic
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_internal_menu') {
         const action = interaction.values[0];
         if (action === 'claim') {
-            return interaction.reply({ content: `✅ تم استلام التذكرة بواسطة <@${interaction.user.id}>` });
+            return interaction.reply({ content: `تم استلام التكت بواسطه <@${interaction.user.id}>` });
         }
         if (action === 'call') {
             const topic = interaction.channel.name.split('-')[1];
             const owner = interaction.guild.members.cache.find(m => m.user.username.toLowerCase() === topic.toLowerCase());
-            if(owner) return interaction.channel.send({ content: `<@${owner.id}>، تم استدعاؤك بواسطة الإدارة!` });
-            return interaction.reply({ content: '❌ لم يتم العثور على صاحب التذكرة.' });
+            if(owner) return interaction.channel.send({ content: `<@${owner.id}> تم استدعاؤك بواسطه الاداره` });
+            return interaction.reply({ content: '❌ لم يتم العثور على صاحب التذكرة.', ephemeral: true });
         }
         if (action === 'close') {
             return interaction.reply({ content: '🔒 تم إغلاق التذكرة.' });
         }
         if (action === 'delete') {
-            await interaction.reply({ content: '🗑️ سيتم حذف التذكرة الآن...' });
+            await interaction.reply({ content: '🗑️ سيتم حذف التذكرة بالكامل الآن...' });
             return setTimeout(() => interaction.channel.delete().catch(() => {}), 2000);
         }
     }
 });
 
 client.login(process.env.DISCORD_TOKEN);
-app.listen(Number(process.env.PORT || 3000));
+app.listen(Number(process.env.PORT || 3000), () => console.log('Dashboard running...'));
