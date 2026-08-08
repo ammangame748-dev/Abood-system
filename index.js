@@ -1,5 +1,5 @@
 // ==========================================
-// ABOOD SYSTEM BOT - Ultimate Complete Version (JSON DB + All Features)
+// ABOOD SYSTEM BOT - Final Updated Version
 // ==========================================
 
 require('dotenv').config();
@@ -7,7 +7,6 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const { Strategy } = require('passport-discord');
-const { createCanvas, loadImage } = require('canvas');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -18,7 +17,7 @@ const {
     AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
     StringSelectMenuBuilder, UserSelectMenuBuilder, ChannelType, PermissionFlagsBits,
     ModalBuilder, TextInputBuilder, TextInputStyle, ActivityType,
-    REST, Routes, SlashCommandBuilder
+    REST, Routes, SlashCommandBuilder, Events
 } = require('discord.js');
 
 // ==========================================
@@ -52,7 +51,16 @@ function writeDB(name, data) {
 const DB = {
     getConfig: (guildId) => {
         const db = readDB('guild_configs');
-        return db[guildId] || { guildId, security: {}, levels: {}, logs: {}, welcome: {}, suggestions: {}, autoReply: [], selfRoles: [] };
+        return db[guildId] || { 
+            guildId, 
+            security: { antiLinks: false, badWords: '', bypassRoles: [] }, 
+            levels: { enabled: false, xpPerMessage: 10, channelId: '', message: '' }, 
+            logs: {}, 
+            welcome: { enabled: false, channel: '', embedMessage: '', image: '' }, 
+            suggestions: { enabled: false, channelId: '', image: '' }, 
+            autoReply: [], 
+            selfRoles: { channelId: '', description: '', roles: [] } 
+        };
     },
     saveConfig: (guildId, newConfig) => {
         const db = readDB('guild_configs');
@@ -70,7 +78,7 @@ const DB = {
     },
     getTicketConfig: (guildId) => {
         const db = readDB('ticket_configs');
-        return db[guildId] || { type: 'buttons', buttons: [], menuOptions: [], imageUrl: '' };
+        return db[guildId] || { title: '', description: '', type: 'button', image: '', options: [] };
     },
     saveTicketConfig: (guildId, data) => {
         const db = readDB('ticket_configs');
@@ -102,6 +110,17 @@ const DB = {
         delete db[messageId];
         writeDB('suggestions', db);
     },
+    getGiveaways: () => readDB('giveaways'),
+    saveGiveaway: (id, data) => {
+        const db = readDB('giveaways');
+        db[id] = data;
+        writeDB('giveaways', db);
+    },
+    deleteGiveaway: (id) => {
+        const db = readDB('giveaways');
+        delete db[id];
+        writeDB('giveaways', db);
+    },
     getStats: (guildId) => {
         const db = readDB('stats');
         return db[guildId] || { messages: { total: 0, daily: 0 } };
@@ -125,6 +144,14 @@ app.set('view engine', 'ejs');
 if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads');
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+const storage = multer.diskStorage({
+    destination: './uploads/',
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + path.extname(file.originalname));
+    }
+});
+const upload = multer({ storage });
+
 // ==========================================
 // 3. Discord Client Setup
 // ==========================================
@@ -144,63 +171,12 @@ const client = new Client({
 });
 
 const commands = [
-    new SlashCommandBuilder().setName('setbanner').setDescription('رفع صورة الخط').addAttachmentOption(o => o.setName('image').setDescription('صورة البنر').setRequired(true)),
-    new SlashCommandBuilder().setName('rename_panel').setDescription('لوحة تغيير الاسم').addStringOption(o => o.setName('name').setRequired(true).setDescription('الاسم')).addAttachmentOption(o => o.setName('image').setDescription('صورة اختيارية')),
-    new SlashCommandBuilder().setName('suggest').setDescription('إرسال اقتراح جديد').addStringOption(o => o.setName('text').setDescription('نص الاقتراح').setRequired(true)).addAttachmentOption(o => o.setName('image').setDescription('صورة الاقتراح').setRequired(false))
+    new SlashCommandBuilder().setName('suggest').setDescription('إرسال اقتراح جديد').addStringOption(o => o.setName('text').setDescription('نص الاقتراح').setRequired(true))
 ].map(c => c.toJSON());
 
 // ==========================================
-// 4. Helper Functions & Advanced Features
+// 4. Auth Setup
 // ==========================================
-function buildSuggestionEmbed(author, text, imageUrl = null, status = 'قيد المراجعة', replyText = null, votes = { approve: 0, reject: 0 }) {
-    const embed = new EmbedBuilder()
-        .setAuthor({ name: author.username || 'مستخدم', iconURL: author.displayAvatarURL ? author.displayAvatarURL() : undefined })
-        .setTitle('اقتراح جديد')
-        .setDescription(text)
-        .addFields(
-            { name: 'الحالة', value: status, inline: true },
-            { name: 'التصويت', value: `نعم: ${votes.approve} | لا: ${votes.reject}`, inline: true }
-        )
-        .setColor(status.includes('موافقة') ? 0x57f287 : 0xfee75c)
-        .setTimestamp();
-    if (imageUrl) embed.setImage(imageUrl);
-    if (replyText) {
-        embed.addFields({ name: 'رد الادارة', value: replyText, inline: false });
-    }
-    return embed;
-}
-
-function buildSuggestionMenu(threadUrl = null) {
-    const select = new StringSelectMenuBuilder()
-        .setCustomId('suggestion_admin_action')
-        .setPlaceholder('قائمة ادارة الاقتراح')
-        .addOptions([
-            { label: 'موافقة على الاقتراح', value: 'approve', description: 'تغيير الحالة إلى تمت الموافقة' },
-            { label: 'الرد على الاقتراح', value: 'reply', description: 'فتح نافذة لكتابة الرد وإنشاء ثريد' },
-            { label: 'حذف الاقتراح', value: 'delete', description: 'حذف رسالة الاقتراح نهائياً' }
-        ]);
-    const row1 = new ActionRowBuilder().addComponents(select);
-    const rows = [row1];
-    if (threadUrl) {
-        const btnRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setLabel('رؤية رد الادارة').setStyle(ButtonStyle.Link).setURL(threadUrl)
-        );
-        rows.push(btnRow);
-    }
-    return rows;
-}
-
-// ==========================================
-// 5. Auth Setup
-// ==========================================
-const storage = multer.diskStorage({
-    destination: './uploads/',
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
-});
-const upload = multer({ storage });
-
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
@@ -229,7 +205,6 @@ const checkAuth = (req, res, next) => {
 const checkGuildAdmin = (req, res, next) => {
     if (!req.isAuthenticated()) return res.redirect('/login');
     const guildId = req.params.guildId;
-    if (!guildId) return next();
     const userGuild = req.user.guilds.find(g => g.id === guildId);
     if (!userGuild) return res.status(403).send('Forbidden');
     const p = BigInt(userGuild.permissions);
@@ -238,421 +213,666 @@ const checkGuildAdmin = (req, res, next) => {
 };
 
 app.get('/auth/discord', passport.authenticate('discord'));
-app.get('/callback', passport.authenticate('discord', { failureRedirect: '/login' }), (req, res) => res.redirect('/dashboard'));
-app.get('/auth/callback', passport.authenticate('discord', { failureRedirect: '/login' }), (req, res) => res.redirect('/dashboard'));
-app.get('/logout', (req, res) => { req.logout(() => res.redirect('/login')); });
+app.get('/callback', passport.authenticate('discord', { failureRedirect: '/login' }), (req, res) => {
+    res.redirect('/dashboard');
+});
 app.get('/login', (req, res) => {
-    res.send(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>Abood System - تسجيل الدخول</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet"><style>body{font-family:'Cairo',sans-serif;background:#0b0f19;color:white;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}.card{background:rgba(17,24,39,0.8);padding:40px;border-radius:20px;text-align:center;border:1px solid rgba(255,255,255,0.05);}a{background:#5865F2;color:white;padding:12px 25px;border-radius:10px;text-decoration:none;font-weight:bold;display:inline-block;margin-top:20px;}</style></head><body><div class="card"><h1>Abood System</h1><p>سجل دخولك عبر ديسكورد لإدارة سيرفرك</p><a href="/auth/discord">تسجيل الدخول</a></div></body></html>`);
+    res.send(`<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8"><title>Abood System - تسجيل الدخول</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Cairo', sans-serif; background: #0b0f19; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-card { background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255,255,255,0.05); padding: 40px; border-radius: 20px; text-align: center; width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        .btn-discord { background: #5865F2; color: white; padding: 14px 25px; border-radius: 12px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 20px; transition: 0.3s; }
+        .btn-discord:hover { background: #4752C4; transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h1>Abood System</h1>
+        <p>سجل دخولك عبر حساب ديسكورد لإدارة سيرفرك</p>
+        <a href="/auth/discord" class="btn-discord">تسجيل الدخول بديسكورد</a>
+    </div>
+</body>
+</html>`);
 });
 
 // ==========================================
-// 6. UI Template Generator
+// 5. UI Template Generator
 // ==========================================
 function ui(guild, activePage, content) {
     const pages = [
-        { id: 'home', label: 'نظرة عامة' },
-        { id: 'suggestions', label: 'الاقتراحات' },
-        { id: 'tickets', label: 'التذاكر' },
-        { id: 'roles', label: 'الرتب الذاتية' },
-        { id: 'kick', label: 'بثوث كيك' },
-        { id: 'welcome', label: 'الترحيب' },
-        { id: 'levels', label: 'المستويات' },
-        { id: 'security', label: 'الحماية' },
-        { id: 'autoreply', label: 'الرد الآلي' },
-        { id: 'giveaway', label: 'القيف اواي' },
-        { id: 'logs', label: 'السجلات' }
+        { id: 'home', icon: 'fa-home', label: 'نظرة عامة' },
+        { id: 'suggestions', icon: 'fa-lightbulb', label: 'الاقتراحات' },
+        { id: 'kick', icon: 'fa-video', label: 'بثوث كيك' },
+        { id: 'welcome', icon: 'fa-user-plus', label: 'الترحيب' },
+        { id: 'security', icon: 'fa-shield-alt', label: 'الحماية' },
+        { id: 'giveaway', icon: 'fa-gift', label: 'القيف اواي' },
+        { id: 'tickets', icon: 'fa-ticket-alt', label: 'التذاكر' },
+        { id: 'levels', icon: 'fa-chart-line', label: 'المستويات' },
+        { id: 'roles', icon: 'fa-id-badge', label: 'الرتب الذاتية' }
     ];
 
-    const nav = pages.map(p => `<a href="/manage/${guild.id}/${p.id}" class="nav-item ${activePage === p.id ? 'active' : ''}">${p.label}</a>`).join('');
+    const navItems = pages.map(p => `
+        <a href="/manage/${guild.id}/${p.id}" class="nav-item ${activePage === p.id ? 'active' : ''}">
+            <i class="fas ${p.icon}"></i>
+            <span>${p.label}</span>
+        </a>
+    `).join('');
 
-    return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>Abood System - ${guild.name}</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet"><style>
-    *{box-sizing:border-box;margin:0;padding:0;font-family:'Cairo',sans-serif;}
-    body{background:#0b0f19;color:#f3f4f6;display:flex;min-height:100vh;}
-    .sidebar{width:260px;background:#111827;border-left:1px solid rgba(255,255,255,0.05);display:flex;flex-direction:column;position:fixed;height:100vh;}
-    .brand{padding:25px;font-size:20px;font-weight:bold;color:#3b82f6;border-bottom:1px solid rgba(255,255,255,0.05);}
-    .nav{padding:20px 0;overflow-y:auto;flex:1;}
-    .nav-item{display:block;padding:12px 25px;color:#9ca3af;text-decoration:none;font-weight:600;border-left:4px solid transparent;}
-    .nav-item:hover,.nav-item.active{color:#fff;background:rgba(59,130,246,0.1);border-left-color:#3b82f6;}
-    .main{flex:1;margin-right:260px;padding:40px;}
-    .card{background:#111827;border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:25px;margin-bottom:25px;}
-    .btn{background:#3b82f6;color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:bold;cursor:pointer;text-decoration:none;display:inline-block;}
-    .form-control{width:100%;background:#0b0f19;border:1px solid rgba(255,255,255,0.1);padding:10px;border-radius:8px;color:white;margin-top:5px;margin-bottom:15px;}
-    label{font-weight:600;color:#d1d5db;font-size:14px;display:block;margin-top:10px;}
-    </style></head><body>
-    <div class="sidebar"><div class="brand">Abood System</div><div class="nav">${nav}</div></div>
-    <div class="main"><div class="card" style="display:flex;justify-content:space-between;align-items:center;"><h2>${guild.name}</h2><a href="/dashboard" class="btn">السيرفرات</a></div>${content}</div></body></html>`;
+    return `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Abood System - ${guild.name}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', sans-serif; }
+        body { background-color: #0b0f19; color: #f3f4f6; display: flex; min-height: 100vh; }
+        .sidebar { width: 280px; background: #111827; display: flex; flex-direction: column; border-left: 1px solid #1f2937; position: fixed; height: 100vh; }
+        .nav-item { padding: 15px 25px; color: #9ca3af; text-decoration: none; display: flex; align-items: center; gap: 15px; transition: 0.3s; }
+        .nav-item:hover, .nav-item.active { background: #1f2937; color: #3b82f6; border-right: 4px solid #3b82f6; }
+        .main { flex: 1; margin-right: 280px; padding: 40px; }
+        .card { background: #111827; padding: 30px; border-radius: 15px; border: 1px solid #1f2937; margin-bottom: 30px; }
+        .form-control { width: 100%; padding: 12px; background: #1f2937; border: 1px solid #374151; border-radius: 8px; color: white; margin-bottom: 20px; }
+        .btn { background: #3b82f6; color: white; padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn:hover { background: #2563eb; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #9ca3af; }
+        .checkbox-container { display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 20px; color: white; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div style="padding: 25px; text-align: center; border-bottom: 1px solid #1f2937;">
+            <h2 style="color: #3b82f6;">Abood System</h2>
+        </div>
+        ${navItems}
+    </div>
+    <div class="main">
+        ${content}
+    </div>
+</body>
+</html>`;
 }
 
 // ==========================================
-// 7. Dashboard Routes
+// 6. Dashboard Routes
 // ==========================================
+
 app.get('/dashboard', checkAuth, (req, res) => {
-    const guilds = req.user.guilds.filter(g => (BigInt(g.permissions) & 8n) === 8n || (BigInt(g.permissions) & 32n) === 32n);
-    const cards = guilds.map(g => `
-        <div style="background:#111827;padding:20px;border-radius:12px;text-align:center;border:1px solid rgba(255,255,255,0.05);">
-            <h3>${g.name}</h3>
-            <a href="/manage/${g.id}/home" class="btn" style="margin-top:15px;">إدارة</a>
-        </div>
-    `).join('');
-    res.send(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>السيرفرات</title><style>body{background:#0b0f19;color:white;font-family:Cairo;padding:40px;}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;}</style></head><body><h1>اختر السيرفر</h1><div class="grid">${cards}</div></body></html>`);
+    const adminGuilds = req.user.guilds.filter(g => {
+        const p = BigInt(g.permissions);
+        return (p & 8n) === 8n || (p & 32n) === 32n;
+    });
+    let content = '<h1>اختر سيرفر لإدارته</h1><div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; margin-top: 30px;">';
+    adminGuilds.forEach(g => {
+        content += `<a href="/manage/${g.id}/home" style="text-decoration: none; color: white;">
+            <div class="card" style="text-align: center; transition: 0.3s;">
+                <img src="https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png" style="width: 80px; height: 80px; border-radius: 50%; margin-bottom: 15px;" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                <h3>${g.name}</h3>
+            </div>
+        </a>`;
+    });
+    content += '</div>';
+    res.send(ui({ name: 'الرئيسية', id: '' }, 'home', content));
 });
 
 app.get('/manage/:guildId/home', checkGuildAdmin, (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    res.send(ui(g, 'home', `<div class="card"><h3>أهلاً بك في لوحة تحكم Abood System</h3><p>الأعضاء: ${g.memberCount}</p></div>`));
+    const stats = DB.getStats(g.id);
+    res.send(ui(g, 'home', `
+        <h1>مرحباً بك في لوحة تحكم ${g.name}</h1>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 30px;">
+            <div class="card" style="text-align: center;"><h3>إجمالي الرسائل</h3><p style="font-size: 24px; color: #3b82f6;">${stats.messages.total}</p></div>
+            <div class="card" style="text-align: center;"><h3>رسائل اليوم</h3><p style="font-size: 24px; color: #3b82f6;">${stats.messages.daily}</p></div>
+            <div class="card" style="text-align: center;"><h3>الأعضاء</h3><p style="font-size: 24px; color: #3b82f6;">${g.memberCount}</p></div>
+        </div>
+    `));
 });
 
 // --- Suggestions ---
 app.get('/manage/:guildId/suggestions', checkGuildAdmin, (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
-    let cfg = DB.getConfig(g.id);
-    res.send(ui(g, 'suggestions', `
-        <div class="card"><h2>نظام الاقتراحات</h2>
-        <form method="POST">
-            <label><input type="checkbox" name="enabled" ${cfg.suggestions?.enabled ? 'checked' : ''}> تفعيل الاقتراحات</label>
+    let s = DB.getConfig(g.id);
+    const content = `
+    <div class="card">
+        <h2>إعدادات الاقتراحات</h2>
+        <form method="POST" action="/save/${g.id}/suggestions" enctype="multipart/form-data">
+            <label class="checkbox-container">
+                <input type="checkbox" name="enabled" ${s.suggestions?.enabled ? 'checked' : ''}> تفعيل الاقتراحات
+            </label>
             <label>قناة الاقتراحات:</label>
-            <select name="channelId" class="form-control">${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${cfg.suggestions?.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}</select>
-            <button type="submit" class="btn">حفظ</button>
-        </form></div>
-    `));
-});
-app.post('/manage/:guildId/suggestions', checkGuildAdmin, (req, res) => {
-    let cfg = DB.getConfig(req.params.guildId);
-    cfg.suggestions = { enabled: req.body.enabled === 'on', channelId: req.body.channelId };
-    DB.saveConfig(req.params.guildId, cfg);
-    res.redirect('back');
-});
-
-// --- Tickets ---
-app.get('/manage/:guildId/tickets', checkGuildAdmin, (req, res) => {
-    const g = client.guilds.cache.get(req.params.guildId);
-    let t = DB.getTicketConfig(g.id);
-    res.send(ui(g, 'tickets', `
-        <div class="card"><h2>نظام التذاكر المطور</h2>
-        <form method="POST">
-            <label>عنوان اللوحة:</label>
-            <input type="text" name="title" class="form-control" value="${t.title || 'الدعم الفني'}">
-            <label>الوصف:</label>
-            <textarea name="description" class="form-control">${t.description || 'اضغط أدناه لفتح تذكرة'}</textarea>
-            <label>نوع القائمة:</label>
-            <select name="type" class="form-control">
-                <option value="buttons" ${t.type === 'buttons' ? 'selected' : ''}>أزرار</option>
-                <option value="menu" ${t.type === 'menu' ? 'selected' : ''}>قائمة (منيو)</option>
+            <select name="channelId" class="form-control">
+                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${s.suggestions?.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
             </select>
-            <label>رابط صورة اللوحة:</label>
-            <input type="text" name="imageUrl" class="form-control" value="${t.imageUrl || ''}">
-            <label>قناة إرسال اللوحة:</label>
-            <select name="channelId" class="form-control"><option value="">-- اختر --</option>${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}</select>
-            <button type="submit" class="btn">حفظ وإرسال اللوحة</button>
-        </form></div>
-    `));
-});
-
-app.post('/manage/:guildId/tickets', checkGuildAdmin, async (req, res) => {
-    const { title, description, type, imageUrl, channelId } = req.body;
-    DB.saveTicketConfig(req.params.guildId, { title, description, type, imageUrl });
-    if (channelId) {
-        const g = client.guilds.cache.get(req.params.guildId);
-        const ch = g.channels.cache.get(channelId);
-        if (ch) {
-            const embed = new EmbedBuilder().setTitle(title).setDescription(description).setColor(0x3b82f6);
-            if (imageUrl) embed.setImage(imageUrl);
-            let row = new ActionRowBuilder();
-            if (type === 'buttons') {
-                row.addComponents(new ButtonBuilder().setCustomId('open_ticket_main').setLabel('فتح تذكرة').setStyle(ButtonStyle.Primary));
-            } else {
-                row.addComponents(new StringSelectMenuBuilder().setCustomId('open_ticket_menu').setPlaceholder('اختر قسم التذكرة').addOptions([{ label: 'الدعم العام', value: 'general' }]));
-            }
-            await ch.send({ embeds: [embed], components: [row] });
-        }
-    }
-    res.redirect('back');
-});
-
-// --- Self Roles ---
-app.get('/manage/:guildId/roles', checkGuildAdmin, (req, res) => {
-    const g = client.guilds.cache.get(req.params.guildId);
-    let cfg = DB.getConfig(g.id);
-    const rolesHtml = Array.from({ length: 6 }, (_, i) => `
-        <div style="display:flex;gap:10px;margin-bottom:10px;">
-            <input type="text" name="label_${i}" class="form-control" placeholder="اسم الخيار ${i+1}" value="${cfg.selfRoles?.[i]?.label || ''}" style="margin:0;">
-            <select name="role_${i}" class="form-control" style="margin:0;"><option value="">-- اختر الرتبة --</option>${g.roles.cache.map(r => `<option value="${r.id}" ${cfg.selfRoles?.[i]?.roleId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}</select>
-            <input type="text" name="emoji_${i}" class="form-control" placeholder="ايدي الايموجي" value="${cfg.selfRoles?.[i]?.emojiId || ''}" style="margin:0;">
-        </div>
-    `).join('');
-
-    res.send(ui(g, 'roles', `
-        <div class="card"><h2>الرتب الذاتية (6 خيارات للإشعارات)</h2>
-        <form method="POST">
-            <label>قناة إرسال المنيو:</label>
-            <select name="channelId" class="form-control"><option value="">-- اختر --</option>${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${cfg.selfRolesChannel === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}</select>
-            <label>محتوى الايمباد:</label>
-            <textarea name="embedText" class="form-control">${cfg.selfRolesText || 'اختر الرتب التي تناسبك'}</textarea>
-            <h3>خيارات الرتب (6)</h3>
-            ${rolesHtml}
-            <button type="submit" class="btn" style="margin-top:15px;">حفظ ونشر المنيو</button>
-        </form></div>
-    `));
-});
-
-app.post('/manage/:guildId/roles', checkGuildAdmin, async (req, res) => {
-    const g = client.guilds.cache.get(req.params.guildId);
-    const { channelId, embedText } = req.body;
-    const selfRoles = [];
-    for (let i = 0; i < 6; i++) {
-        const label = req.body[`label_${i}`];
-        const roleId = req.body[`role_${i}`];
-        const emojiId = req.body[`emoji_${i}`];
-        if (label && roleId) selfRoles.push({ label, roleId, emojiId });
-    }
-    let cfg = DB.getConfig(g.id);
-    cfg.selfRoles = selfRoles;
-    cfg.selfRolesChannel = channelId;
-    cfg.selfRolesText = embedText;
-    DB.saveConfig(g.id, cfg);
-
-    if (channelId && selfRoles.length > 0) {
-        const ch = g.channels.cache.get(channelId);
-        if (ch) {
-            const embed = new EmbedBuilder().setTitle('الرتب الذاتية').setDescription(embedText).setColor(0x3b82f6);
-            const select = new StringSelectMenuBuilder().setCustomId('self_roles_menu').setPlaceholder('اختر الرتب المطلوبة').setMinValues(0).setMaxValues(selfRoles.length);
-            selfRoles.forEach((sr, idx) => {
-                const opt = { label: sr.label, value: sr.roleId };
-                if (sr.emojiId) opt.emoji = sr.emojiId;
-                select.addOptions(opt);
-            });
-            await ch.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(select)] });
-        }
-    }
-    res.redirect('back');
-});
-
-// --- Kick ---
-app.get('/manage/:guildId/kick', checkGuildAdmin, (req, res) => {
-    const g = client.guilds.cache.get(req.params.guildId);
-    let k = DB.getKick(g.id);
-    res.send(ui(g, 'kick', `
-        <div class="card"><h2>بثوث كيك</h2>
-        <form method="POST">
-            <label>يوزر الكيك:</label>
-            <input type="text" name="username" class="form-control" required>
-            <label>قناة التنبيهات:</label>
-            <select name="channelId" class="form-control">${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}</select>
-            <button type="submit" class="btn">إضافة</button>
+            <label>صورة الإمباد (رفع ملف):</label>
+            <input type="file" name="image" class="form-control">
+            ${s.suggestions?.image ? `<img src="${s.suggestions.image}" style="max-width: 300px; border-radius: 10px; margin-bottom: 10px; display: block;">` : ''}
+            <button type="submit" class="btn">حفظ الإعدادات</button>
         </form>
-        <hr style="margin:20px 0;border:0;border-top:1px solid rgba(255,255,255,0.05)">
-        <div>${k.streamers.map(s => `<p>${s.username}</p>`).join('') || 'لا يوجد'}</div></div>
-    `));
+    </div>`;
+    res.send(ui(g, 'suggestions', content));
 });
-app.post('/manage/:guildId/kick', checkGuildAdmin, (req, res) => {
-    let k = DB.getKick(req.params.guildId);
-    k.streamers.push({ username: req.body.username, channelId: req.body.channelId, isLive: false });
-    DB.saveKick(req.params.guildId, k);
-    res.redirect('back');
+
+app.post('/save/:guildId/suggestions', checkGuildAdmin, upload.single('image'), (req, res) => {
+    let cfg = DB.getConfig(req.params.guildId);
+    cfg.suggestions = {
+        enabled: req.body.enabled === 'on',
+        channelId: req.body.channelId,
+        image: req.file ? `/uploads/${req.file.filename}` : cfg.suggestions.image
+    };
+    DB.saveConfig(req.params.guildId, cfg);
+    res.redirect(`/manage/${req.params.guildId}/suggestions`);
 });
 
 // --- Welcome ---
 app.get('/manage/:guildId/welcome', checkGuildAdmin, (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
-    let cfg = DB.getConfig(g.id);
-    res.send(ui(g, 'welcome', `
-        <div class="card"><h2>الترحيب</h2>
-        <form method="POST">
-            <label><input type="checkbox" name="enabled" ${cfg.welcome?.enabled ? 'checked' : ''}> تفعيل</label>
-            <label>القناة:</label>
-            <select name="channelId" class="form-control">${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${cfg.welcome?.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}</select>
-            <label>الرسالة:</label>
-            <textarea name="message" class="form-control">${cfg.welcome?.message || 'أهلاً بك'}</textarea>
-            <label>رابط الصورة:</label>
-            <input type="text" name="imageUrl" class="form-control" value="${cfg.welcome?.imageUrl || ''}">
-            <button type="submit" class="btn">حفظ</button>
-        </form></div>
-    `));
+    let s = DB.getConfig(g.id);
+    const content = `
+    <div class="card">
+        <h2>إعدادات الترحيب</h2>
+        <form method="POST" action="/save/${g.id}/welcome" enctype="multipart/form-data">
+            <label class="checkbox-container">
+                <input type="checkbox" name="enabled" ${s.welcome?.enabled ? 'checked' : ''}> تفعيل الترحيب
+            </label>
+            <label>قناة الترحيب:</label>
+            <select name="channel" class="form-control">
+                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${s.welcome?.channel === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
+            </select>
+            <label>رسالة الترحيب ({member}, {guild}, {count}):</label>
+            <textarea name="embedMessage" class="form-control" rows="4">${s.welcome?.embedMessage || ''}</textarea>
+            <label>صورة الترحيب (رفع ملف):</label>
+            <input type="file" name="image" class="form-control">
+            ${s.welcome?.image ? `<img src="${s.welcome.image}" style="max-width: 300px; border-radius: 10px; margin-bottom: 10px; display: block;">` : ''}
+            <button type="submit" class="btn">حفظ الإعدادات</button>
+        </form>
+    </div>`;
+    res.send(ui(g, 'welcome', content));
 });
-app.post('/manage/:guildId/welcome', checkGuildAdmin, (req, res) => {
+
+app.post('/save/:guildId/welcome', checkGuildAdmin, upload.single('image'), (req, res) => {
     let cfg = DB.getConfig(req.params.guildId);
-    cfg.welcome = { enabled: req.body.enabled === 'on', channelId: req.body.channelId, message: req.body.message, imageUrl: req.body.imageUrl };
+    cfg.welcome = {
+        enabled: req.body.enabled === 'on',
+        channel: req.body.channel,
+        embedMessage: req.body.embedMessage,
+        image: req.file ? `/uploads/${req.file.filename}` : cfg.welcome.image
+    };
     DB.saveConfig(req.params.guildId, cfg);
-    res.redirect('back');
+    res.redirect(`/manage/${req.params.guildId}/welcome`);
+});
+
+// --- Kick Streams ---
+app.get('/manage/:guildId/kick', checkGuildAdmin, (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    let s = DB.getKick(g.id);
+    const content = `
+    <div class="card">
+        <h2>إعدادات بثوث كيك (بدون إيموجي)</h2>
+        <form method="POST" action="/save/${g.id}/kick">
+            <label>اسم المستخدم في Kick:</label>
+            <input type="text" name="kickUser" class="form-control" placeholder="مثال: streamername">
+            <label>قناة التنبيه:</label>
+            <select name="channelId" class="form-control">
+                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}
+            </select>
+            <button type="submit" class="btn">إضافة الستريمر</button>
+        </form>
+        <div style="margin-top: 20px;">
+            ${s.streamers.map((st, i) => `<div style="padding: 15px; background: #1f2937; margin-bottom: 10px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <span>${st.kickUsername} -> القناة: <#${st.channelId}></span>
+                <a href="/delete-kick/${g.id}/${i}" class="btn btn-danger" style="text-decoration: none;">حذف</a>
+            </div>`).join('')}
+        </div>
+    </div>`;
+    res.send(ui(g, 'kick', content));
+});
+
+app.post('/save/:guildId/kick', checkGuildAdmin, (req, res) => {
+    let s = DB.getKick(req.params.guildId);
+    s.streamers.push({ kickUsername: req.body.kickUser.trim(), channelId: req.body.channelId, isLive: false });
+    DB.saveKick(req.params.guildId, s);
+    res.redirect(`/manage/${req.params.guildId}/kick`);
+});
+
+app.get('/delete-kick/:guildId/:index', checkGuildAdmin, (req, res) => {
+    let s = DB.getKick(req.params.guildId);
+    s.streamers.splice(Number(req.params.index), 1);
+    DB.saveKick(req.params.guildId, s);
+    res.redirect(`/manage/${req.params.guildId}/kick`);
+});
+
+// --- Tickets ---
+app.get('/manage/:guildId/tickets', checkGuildAdmin, (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    let s = DB.getTicketConfig(g.id);
+    let optionsRows = '';
+    for(let i=0; i<5; i++) {
+        const opt = s.options?.[i] || {};
+        optionsRows += `
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <input type="text" name="opt_id_${i}" class="form-control" placeholder="ID (مثال: support)" value="${opt.id || ''}" style="margin:0;">
+            <input type="text" name="opt_label_${i}" class="form-control" placeholder="Label (مثال: دعم فني)" value="${opt.label || ''}" style="margin:0;">
+            <input type="text" name="opt_emoji_${i}" class="form-control" placeholder="Emoji (مثال: 🎫)" value="${opt.emoji || ''}" style="margin:0;">
+        </div>`;
+    }
+
+    const content = `
+    <div class="card">
+        <h2>نظام التذاكر</h2>
+        <form method="POST" action="/save/${g.id}/tickets" enctype="multipart/form-data">
+            <label>عنوان اللوحة:</label>
+            <input type="text" name="title" class="form-control" value="${s.title || ''}">
+            <label>الوصف:</label>
+            <textarea name="description" class="form-control">${s.description || ''}</textarea>
+            <label>نوع التحكم:</label>
+            <select name="type" class="form-control">
+                <option value="button" ${s.type === 'button' ? 'selected' : ''}>أزرار</option>
+                <option value="menu" ${s.type === 'menu' ? 'selected' : ''}>منيو</option>
+            </select>
+            <label>صورة التذكرة (رفع ملف):</label>
+            <input type="file" name="image" class="form-control">
+            ${s.image ? `<img src="${s.image}" style="max-width: 300px; border-radius: 10px; margin-bottom: 10px; display: block;">` : ''}
+            <label>الخيارات (ID, Label, Emoji):</label>
+            ${optionsRows}
+            <label>قناة الإرسال:</label>
+            <select name="targetChannel" class="form-control">
+                <option value="">-- لا ترسل الآن --</option>
+                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}
+            </select>
+            <button type="submit" class="btn">حفظ وإرسال اللوحة</button>
+        </form>
+    </div>`;
+    res.send(ui(g, 'tickets', content));
+});
+
+app.post('/save/:guildId/tickets', checkGuildAdmin, upload.single('image'), async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    const options = [];
+    for(let i=0; i<5; i++) {
+        const id = req.body[`opt_id_${i}`];
+        const label = req.body[`opt_label_${i}`];
+        const emoji = req.body[`opt_emoji_${i}`];
+        if(id && label) options.push({ id, label, emoji });
+    }
+    const data = {
+        title: req.body.title,
+        description: req.body.description,
+        type: req.body.type,
+        image: req.file ? `/uploads/${req.file.filename}` : DB.getTicketConfig(g.id).image,
+        options
+    };
+    DB.saveTicketConfig(g.id, data);
+
+    if (req.body.targetChannel) {
+        const channel = g.channels.cache.get(req.body.targetChannel);
+        if (channel) {
+            const embed = new EmbedBuilder().setTitle(data.title).setDescription(data.description).setColor(0x3b82f6);
+            if(data.image) embed.setImage(`${process.env.BASE_URL || ''}${data.image}`);
+            
+            const row = new ActionRowBuilder();
+            if (data.type === 'button') {
+                data.options.forEach(opt => {
+                    const btn = new ButtonBuilder().setCustomId(`ticket_open_${opt.id}`).setLabel(opt.label).setStyle(ButtonStyle.Primary);
+                    if(opt.emoji) btn.setEmoji(opt.emoji);
+                    row.addComponents(btn);
+                });
+            } else {
+                const menu = new StringSelectMenuBuilder().setCustomId('ticket_open_menu').setPlaceholder('اختر نوع التذكرة');
+                data.options.forEach(opt => {
+                    menu.addOptions({ label: opt.label, value: opt.id, emoji: opt.emoji || undefined });
+                });
+                row.addComponents(menu);
+            }
+            await channel.send({ embeds: [embed], components: data.options.length > 0 ? [row] : [] });
+        }
+    }
+    res.redirect(`/manage/${g.id}/tickets`);
 });
 
 // --- Levels ---
 app.get('/manage/:guildId/levels', checkGuildAdmin, (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
-    let cfg = DB.getConfig(g.id);
-    res.send(ui(g, 'levels', `
-        <div class="card"><h2>المستويات</h2>
-        <form method="POST">
-            <label><input type="checkbox" name="enabled" ${cfg.levels?.enabled ? 'checked' : ''}> تفعيل</label>
-            <label>قناة الإشعارات:</label>
-            <select name="channelId" class="form-control">${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${cfg.levels?.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}</select>
-            <label>رسالة التهنئة:</label>
-            <input type="text" name="message" class="form-control" value="${cfg.levels?.message || 'مبروك {member} وصولك للمستوى {level}'}">
-            <button type="submit" class="btn">حفظ</button>
-        </form></div>
-    `));
+    let s = DB.getConfig(g.id);
+    const content = `
+    <div class="card">
+        <h2>إعدادات المستويات</h2>
+        <form method="POST" action="/save/${g.id}/levels">
+            <label class="checkbox-container">
+                <input type="checkbox" name="enabled" ${s.levels?.enabled ? 'checked' : ''}> تفعيل المستويات
+            </label>
+            <label>XP لكل رسالة:</label>
+            <input type="number" name="xpPerMessage" class="form-control" value="${s.levels?.xpPerMessage || 10}">
+            <label>قناة إشعار الليفل:</label>
+            <select name="channelId" class="form-control">
+                <option value="">نفس القناة</option>
+                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${s.levels?.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
+            </select>
+            <label>رسالة الترقية ({user}, {level}):</label>
+            <textarea name="message" class="form-control" placeholder="مبروك {user} وصلت للمستوى {level}">${s.levels?.message || ''}</textarea>
+            <button type="submit" class="btn">حفظ الإعدادات</button>
+        </form>
+    </div>`;
+    res.send(ui(g, 'levels', content));
 });
-app.post('/manage/:guildId/levels', checkGuildAdmin, (req, res) => {
+
+app.post('/save/:guildId/levels', checkGuildAdmin, (req, res) => {
     let cfg = DB.getConfig(req.params.guildId);
-    cfg.levels = { enabled: req.body.enabled === 'on', channelId: req.body.channelId, message: req.body.message };
+    cfg.levels = {
+        enabled: req.body.enabled === 'on',
+        xpPerMessage: Number(req.body.xpPerMessage),
+        channelId: req.body.channelId,
+        message: req.body.message
+    };
     DB.saveConfig(req.params.guildId, cfg);
-    res.redirect('back');
+    res.redirect(`/manage/${req.params.guildId}/levels`);
 });
 
 // --- Security ---
 app.get('/manage/:guildId/security', checkGuildAdmin, (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
-    let cfg = DB.getConfig(g.id);
-    res.send(ui(g, 'security', `
-        <div class="card"><h2>الحماية مع التجاوز</h2>
-        <form method="POST">
-            <label><input type="checkbox" name="antiLinks" ${cfg.security?.antiLinks ? 'checked' : ''}> منع الروابط</label>
-            <label>رتب التجاوز (اختر الرتب التي تتجاوز الحماية):</label>
-            <select name="bypassRoles" class="form-control" multiple style="height:120px;">
-                ${g.roles.cache.map(r => `<option value="${r.id}" ${(cfg.security?.bypassRoles || []).includes(r.id) ? 'selected' : ''}>${r.name}</option>`).join('')}
+    let s = DB.getConfig(g.id);
+    const content = `
+    <div class="card">
+        <h2>إعدادات الحماية</h2>
+        <form method="POST" action="/save/${g.id}/security">
+            <label class="checkbox-container">
+                <input type="checkbox" name="antiLinks" ${s.security?.antiLinks ? 'checked' : ''}> حظر الروابط
+            </label>
+            <label>الكلمات المحظورة (افصل بينها بفاصلة):</label>
+            <input type="text" name="badWords" class="form-control" value="${s.security?.badWords || ''}">
+            <label>رتب تتجاوز الحماية (Bypass):</label>
+            <select name="bypassRoles" class="form-control" multiple style="height: 150px;">
+                ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.security?.bypassRoles?.includes(r.id) ? 'selected' : ''}>${r.name}</option>`).join('')}
             </select>
-            <button type="submit" class="btn">حفظ</button>
-        </form></div>
-    `));
-});
-app.post('/manage/:guildId/security', checkGuildAdmin, (req, res) => {
-    let cfg = DB.getConfig(req.params.guildId);
-    cfg.security = { antiLinks: req.body.antiLinks === 'on', bypassRoles: Array.isArray(req.body.bypassRoles) ? req.body.bypassRoles : [req.body.bypassRoles].filter(Boolean) };
-    DB.saveConfig(req.params.guildId, cfg);
-    res.redirect('back');
+            <button type="submit" class="btn">حفظ الإعدادات</button>
+        </form>
+    </div>`;
+    res.send(ui(g, 'security', content));
 });
 
-// --- Auto Reply ---
-app.get('/manage/:guildId/autoreply', checkGuildAdmin, (req, res) => {
+app.post('/save/:guildId/security', checkGuildAdmin, (req, res) => {
+    let cfg = DB.getConfig(req.params.guildId);
+    cfg.security = {
+        antiLinks: req.body.antiLinks === 'on',
+        badWords: req.body.badWords,
+        bypassRoles: Array.isArray(req.body.bypassRoles) ? req.body.bypassRoles : (req.body.bypassRoles ? [req.body.bypassRoles] : [])
+    };
+    DB.saveConfig(req.params.guildId, cfg);
+    res.redirect(`/manage/${req.params.guildId}/security`);
+});
+
+// --- Self Roles ---
+app.get('/manage/:guildId/roles', checkGuildAdmin, (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
+    let s = DB.getConfig(g.id).selfRoles || { channelId: '', description: '', roles: [] };
+    let roleOptions = '';
+    for(let i=0; i<6; i++) {
+        roleOptions += `<label>خيار ${i+1}:</label><select name="role_${i}" class="form-control">
+            <option value="">-- اختر رتبة --</option>
+            ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.roles?.[i] === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
+        </select>`;
+    }
+
+    const content = `
+    <div class="card">
+        <h2>الرتب الذاتية (للاشعارات)</h2>
+        <form method="POST" action="/save/${g.id}/roles">
+            <label>قناة المنيو:</label>
+            <select name="channelId" class="form-control">
+                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${s.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
+            </select>
+            <label>وصف المنيو (Embed Description):</label>
+            <textarea name="description" class="form-control">${s.description || ''}</textarea>
+            <label>الرتب (6 خيارات):</label>
+            ${roleOptions}
+            <button type="submit" class="btn">حفظ وإرسال المنيو</button>
+        </form>
+    </div>`;
+    res.send(ui(g, 'roles', content));
+});
+
+app.post('/save/:guildId/roles', checkGuildAdmin, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    const roles = [];
+    for(let i=0; i<6; i++) {
+        if(req.body[`role_${i}`]) roles.push(req.body[`role_${i}`]);
+    }
+    const selfRoles = { channelId: req.body.channelId, description: req.body.description, roles };
     let cfg = DB.getConfig(g.id);
-    res.send(ui(g, 'autoreply', `<div class="card"><h2>الرد الآلي</h2><p>قريباً</p></div>`));
+    cfg.selfRoles = selfRoles;
+    DB.saveConfig(g.id, cfg);
+
+    const channel = g.channels.cache.get(selfRoles.channelId);
+    if(channel && roles.length > 0) {
+        const embed = new EmbedBuilder().setTitle('قائمة الرتب الذاتية').setDescription(selfRoles.description || 'اختر الرتب التي تريدها من المنيو أدناه').setColor(0x3b82f6);
+        const menu = new StringSelectMenuBuilder().setCustomId('self_roles_menu').setPlaceholder('اختر رتبك').setMinValues(0).setMaxValues(roles.length);
+        roles.forEach(rid => {
+            const role = g.roles.cache.get(rid);
+            if(role) menu.addOptions({ label: role.name, value: rid });
+        });
+        const row = new ActionRowBuilder().addComponents(menu);
+        await channel.send({ embeds: [embed], components: [row] });
+    }
+    res.redirect(`/manage/${g.id}/roles`);
 });
 
 // --- Giveaway ---
 app.get('/manage/:guildId/giveaway', checkGuildAdmin, (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
-    res.send(ui(g, 'giveaway', `
-        <div class="card"><h2>قيف اواي</h2>
-        <form method="POST">
-            <label>الجائزة:</label><input type="text" name="prize" class="form-control" required>
-            <label>المدة (مثال 1h):</label><input type="text" name="duration" class="form-control" required>
-            <label>القناة:</label><select name="channelId" class="form-control">${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}</select>
-            <button type="submit" class="btn">بدء</button>
-        </form></div>
-    `));
+    const content = `
+    <div class="card">
+        <h2>إنشاء قيف اواي جديد</h2>
+        <form method="POST" action="/save/${g.id}/giveaway">
+            <label>الجائزة:</label>
+            <input type="text" name="prize" class="form-control" required>
+            <label>المدة (مثال: 1h أو 1d):</label>
+            <input type="text" name="duration" class="form-control" required>
+            <label>عدد الفائزين:</label>
+            <input type="number" name="winners" class="form-control" value="1" required>
+            <label>قناة الإرسال:</label>
+            <select name="channel" class="form-control">
+                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}
+            </select>
+            <button type="submit" class="btn">تشغيل القيف اواي</button>
+        </form>
+    </div>`;
+    res.send(ui(g, 'giveaway', content));
 });
-app.post('/manage/:guildId/giveaway', checkGuildAdmin, async (req, res) => {
-    const { prize, duration, channelId } = req.body;
+
+app.post('/save/:guildId/giveaway', checkGuildAdmin, async (req, res) => {
+    const { prize, duration, winners, channel } = req.body;
     const g = client.guilds.cache.get(req.params.guildId);
-    const ch = g.channels.cache.get(channelId);
-    const time = ms(duration);
-    if (ch && time) {
-        const embed = new EmbedBuilder().setTitle(`قيف اواي: ${prize}`).setDescription('اضغط على التفاعل أدناه للمشاركة').setColor(0x3b82f6);
-        const msg = await ch.send({ embeds: [embed] });
-        await msg.react('🎉');
-        setTimeout(async () => {
-            try {
-                const fetched = await ch.messages.fetch(msg.id);
-                const reaction = fetched.reactions.cache.get('🎉');
+    const timeMs = ms(duration);
+    if (!timeMs) return res.send('صيغة الوقت غير صحيحة');
+    const endAt = Date.now() + timeMs;
+    const targetCh = g.channels.cache.get(channel);
+    
+    const embed = new EmbedBuilder()
+        .setTitle(`🎉 قيف اواي: ${prize}`)
+        .setDescription(`اضغط على التفاعل 🎉 للاشتراك!\n\nعدد الفائزين: ${winners}\nينتهي في: <t:${Math.floor(endAt/1000)}:R>`)
+        .setColor(0x3b82f6);
+
+    const msg = await targetCh.send({ embeds: [embed] });
+    await msg.react('🎉');
+
+    DB.saveGiveaway(msg.id, { guildId: g.id, channelId: targetCh.id, prize, winners: Number(winners), endAt });
+    res.redirect(`/manage/${g.id}/giveaway`);
+});
+
+// ==========================================
+// 7. Bot Logic & Events
+// ==========================================
+
+client.on('ready', () => {
+    console.log(`[BOT] ${client.user.tag} Ready`);
+    
+    // Kick Stream Checker (No Emojis)
+    setInterval(async () => {
+        const db = readDB('kick_configs');
+        for (const guildId in db) {
+            const g = client.guilds.cache.get(guildId);
+            if (!g) continue;
+            for (const st of db[guildId].streamers) {
+                try {
+                    const response = await axios.get(`https://kick.com/api/v1/channels/${st.kickUsername}`).catch(() => null);
+                    if (response && response.data && response.data.livestream) {
+                        if (!st.isLive) {
+                            st.isLive = true;
+                            const channel = g.channels.cache.get(st.channelId);
+                            if (channel) {
+                                const embed = new EmbedBuilder()
+                                    .setTitle(`${st.kickUsername} فاتح بث الآن`)
+                                    .setURL(`https://kick.com/${st.kickUsername}`)
+                                    .setDescription(response.data.livestream.session_title || 'بث مباشر على Kick')
+                                    .addFields(
+                                        { name: 'المشاهدين', value: `${response.data.livestream.viewer_count || 0}`, inline: true }
+                                    )
+                                    .setImage(response.data.livestream.thumbnail.url)
+                                    .setColor(0x53fc18);
+                                await channel.send({ embeds: [embed] });
+                            }
+                        }
+                    } else {
+                        st.isLive = false;
+                    }
+                } catch (e) {}
+            }
+            DB.saveKick(guildId, db[guildId]);
+        }
+    }, 60000);
+
+    // Giveaway Winner Picker
+    setInterval(async () => {
+        const giveaways = DB.getGiveaways();
+        for (const id in giveaways) {
+            const gw = giveaways[id];
+            if (Date.now() > gw.endAt) {
+                const g = client.guilds.cache.get(gw.guildId);
+                if (!g) { DB.deleteGiveaway(id); continue; }
+                const ch = g.channels.cache.get(gw.channelId);
+                if (!ch) { DB.deleteGiveaway(id); continue; }
+                const msg = await ch.messages.fetch(id).catch(() => null);
+                if (!msg) { DB.deleteGiveaway(id); continue; }
+
+                const reaction = msg.reactions.cache.get('🎉');
                 if (reaction) {
                     const users = await reaction.users.fetch();
-                    const valid = users.filter(u => !u.bot);
-                    if (valid.size > 0) {
-                        const winner = valid.random();
-                        ch.send(`مبروك ${winner} لقد فزت بـ ${prize}`);
+                    const candidates = users.filter(u => !u.bot).map(u => u.id);
+                    const winners = [];
+                    for(let i=0; i<gw.winners && candidates.length > 0; i++) {
+                        const winner = candidates.splice(Math.floor(Math.random() * candidates.length), 1)[0];
+                        winners.push(`<@${winner}>`);
+                    }
+                    if(winners.length > 0) {
+                        ch.send(`🎉 مبروك ${winners.join(', ')}! لقد فزت بـ **${gw.prize}**!`);
                     } else {
-                        ch.send('لم يشارك أحد في القيف اواي');
+                        ch.send('❌ لم يشارك أحد في القيف اواي.');
                     }
                 }
-            } catch (e) {}
-        }, time);
-    }
-    res.redirect('back');
-});
-
-// --- Logs ---
-app.get('/manage/:guildId/logs', checkGuildAdmin, (req, res) => {
-    const g = client.guilds.cache.get(req.params.guildId);
-    res.send(ui(g, 'logs', `<div class="card"><h2>السجلات</h2><p>قريباً</p></div>`));
-});
-
-app.get('/ping', (req, res) => res.send('OK'));
-app.get('/', (req, res) => res.redirect('/dashboard'));
-
-// ==========================================
-// 8. Discord Bot Events & Handlers
-// ==========================================
-client.on('ready', async () => {
-    console.log(`[BOT] Logged in as ${client.user.tag}`);
-    client.user.setActivity('Abood System | /suggest', { type: ActivityType.Watching });
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
+                DB.deleteGiveaway(id);
+            }
+        }
+    }, 10000);
 });
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
     const cfg = DB.getConfig(message.guild.id);
 
-    // Security Check with Bypass
-    if (cfg.security?.antiLinks && /(https?:\/\/[^\s]+)/g.test(message.content)) {
-        const bypass = cfg.security?.bypassRoles || [];
-        const hasBypass = message.member.roles.cache.some(r => bypass.includes(r.id)) || message.member.permissions.has(PermissionFlagsBits.Administrator);
-        if (!hasBypass) {
+    // Stats
+    let stats = DB.getStats(message.guild.id);
+    stats.messages.total++;
+    stats.messages.daily++;
+    DB.saveStats(message.guild.id, stats);
+
+    // Security (Bypass Logic)
+    const hasBypass = message.member.roles.cache.some(r => cfg.security?.bypassRoles?.includes(r.id));
+    if (!hasBypass) {
+        if (cfg.security?.antiLinks && /(https?:\/\/[^\s]+)/g.test(message.content)) {
             await message.delete().catch(() => {});
-            return message.channel.send(`${message.author} ممنوع إرسال الروابط هنا!`).then(m => setTimeout(() => m.delete().catch(() => {}), 4000));
+            return;
+        }
+        if (cfg.security?.badWords) {
+            const words = cfg.security.badWords.split(',').map(w => w.trim());
+            if (words.some(w => message.content.includes(w))) {
+                await message.delete().catch(() => {});
+                return;
+            }
         }
     }
 
-    // Suggestions listener
-    if (cfg?.suggestions?.enabled && message.channel.id === cfg.suggestions.channelId) {
+    // Suggestions Listener
+    if (cfg.suggestions?.enabled && message.channel.id === cfg.suggestions.channelId) {
         const text = message.content;
-        let imageUrl = message.attachments.first()?.url || null;
         await message.delete().catch(() => {});
-        const embed = buildSuggestionEmbed(message.author, text, imageUrl);
-        const msg = await message.channel.send({ embeds: [embed], components: buildSuggestionMenu() });
+        const embed = new EmbedBuilder()
+            .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL() })
+            .setTitle('💡 اقتراح جديد')
+            .setDescription(text)
+            .setColor(0xfee75c)
+            .setTimestamp();
+        if(cfg.suggestions.image) embed.setImage(`${process.env.BASE_URL || ''}${cfg.suggestions.image}`);
+        
+        const msg = await message.channel.send({ embeds: [embed] });
         await msg.react('✅');
         await msg.react('❌');
-
-        DB.saveSuggestion(msg.id, { guildId: message.guild.id, messageId: msg.id, userId: message.author.id, text, imageUrl, status: 'قيد المراجعة', votes: { approve: 0, reject: 0 } });
+        DB.saveSuggestion(msg.id, { guildId: message.guild.id, userId: message.author.id, text });
         return;
     }
 
-    // Levels
-    if (cfg?.levels?.enabled) {
+    // Levels XP
+    if (cfg.levels?.enabled) {
         let u = DB.getUserLevel(message.guild.id, message.author.id);
-        u.xp += 10;
+        u.xp += cfg.levels.xpPerMessage || 10;
         if (u.xp >= u.level * u.level * 100) {
             u.level++;
-            const ch = message.guild.channels.cache.get(cfg.levels.channelId) || message.channel;
-            const text = (cfg.levels.message || 'مبروك {member} وصولك للمستوى {level}').replace('{member}', message.author).replace('{level}', u.level);
-            ch.send(text).catch(() => {});
+            const targetCh = cfg.levels.channelId ? message.guild.channels.cache.get(cfg.levels.channelId) : message.channel;
+            let msgText = cfg.levels.message || 'مبروك {user} وصلت للمستوى {level} 🚀';
+            msgText = msgText.replace('{user}', `<@${message.author.id}>`).replace('{level}', u.level);
+            if(targetCh) targetCh.send(msgText).catch(() => {});
         }
         DB.saveUserLevel(message.guild.id, message.author.id, u);
+    }
+
+    // Auto Reply
+    const ar = cfg.autoReply?.find(x => x.trigger && message.content.toLowerCase() === x.trigger.toLowerCase());
+    if (ar) message.reply(ar.reply).catch(() => {});
+});
+
+client.on('guildMemberAdd', async (member) => {
+    const cfg = DB.getConfig(member.guild.id);
+    if (cfg.welcome?.enabled && cfg.welcome.channel) {
+        const channel = member.guild.channels.cache.get(cfg.welcome.channel);
+        if (channel) {
+            let msg = cfg.welcome.embedMessage || 'أهلاً بك {member} في {guild}!';
+            msg = msg.replace('{member}', `<@${member.id}>`).replace('{guild}', member.guild.name).replace('{count}', member.guild.memberCount);
+            const embed = new EmbedBuilder().setDescription(msg).setColor(0x3b82f6);
+            if(cfg.welcome.image) embed.setImage(`${process.env.BASE_URL || ''}${cfg.welcome.image}`);
+            channel.send({ embeds: [embed] });
+        }
     }
 });
 
 client.on('interactionCreate', async (interaction) => {
-    if (interaction.isChatInputCommand()) {
-        if (interaction.commandName === 'suggest') {
-            const cfg = DB.getConfig(interaction.guild.id);
-            if (!cfg?.suggestions?.enabled || !cfg?.suggestions?.channelId) return interaction.reply({ content: 'الاقتراحات غير مفعلة', ephemeral: true });
-            const text = interaction.options.getString('text');
-            const image = interaction.options.getAttachment('image');
-            const ch = interaction.guild.channels.cache.get(cfg.suggestions.channelId);
-            const embed = buildSuggestionEmbed(interaction.user, text, image?.url || null);
-            const msg = await ch.send({ embeds: [embed], components: buildSuggestionMenu() });
-            await msg.react('✅');
-            await msg.react('❌');
-            DB.saveSuggestion(msg.id, { guildId: interaction.guild.id, messageId: msg.id, userId: interaction.user.id, text, imageUrl: image?.url || null, status: 'قيد المراجعة', votes: { approve: 0, reject: 0 } });
-            await interaction.reply({ content: 'تم الإرسال', ephemeral: true });
-        }
+    // Self Roles
+    if (interaction.isStringSelectMenu() && interaction.customId === 'self_roles_menu') {
+        const roles = interaction.values;
+        const allRoles = DB.getConfig(interaction.guild.id).selfRoles.roles;
+        await interaction.member.roles.remove(allRoles.filter(r => !roles.includes(r))).catch(() => {});
+        await interaction.member.roles.add(roles).catch(() => {});
+        return interaction.reply({ content: '✅ تم تحديث رتبك بنجاح!', ephemeral: true });
     }
 
-    // Tickets
-    if (interaction.isButton() && interaction.customId === 'open_ticket_main') {
-        const ticketCh = await interaction.guild.channels.create({
+    // Ticket Open
+    if ((interaction.isButton() && interaction.customId.startsWith('ticket_open_')) || (interaction.isStringSelectMenu() && interaction.customId === 'ticket_open_menu')) {
+        const ticketId = interaction.isButton() ? interaction.customId.replace('ticket_open_', '') : interaction.values[0];
+        const channel = await interaction.guild.channels.create({
             name: `ticket-${interaction.user.username}`,
             type: ChannelType.GuildText,
             permissionOverwrites: [
@@ -660,146 +880,40 @@ client.on('interactionCreate', async (interaction) => {
                 { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
             ]
         });
-        const row = new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder().setCustomId('ticket_manage_menu').setPlaceholder('خيارات التذكرة').addOptions([
-                { label: 'استلام التذكرة', value: 'claim', description: 'استلام التذكرة كإداري' },
-                { label: 'استدعاء صاحب التذكرة', value: 'summon', description: 'منشن صاحب التذكرة' },
-                { label: 'إغلاق التذكرة', value: 'close', description: 'إغلاق التذكرة' },
-                { label: 'حذف التذكرة', value: 'delete', description: 'حذف التذكرة نهائياً' }
-            ])
-        );
-        await ticketCh.send({ content: `مرحباً ${interaction.user}، فريق الدعم سيرد عليك قريباً.`, components: [row] });
-        return interaction.reply({ content: `تم فتح التذكرة: ${ticketCh}`, ephemeral: true });
+
+        const embed = new EmbedBuilder().setTitle('تذكرة جديدة').setDescription(`نوع التذكرة: ${ticketId}\nمرحباً بك <@${interaction.user.id}>، سيتم الرد عليك قريباً.`).setColor(0x3b82f6);
+        const menu = new StringSelectMenuBuilder().setCustomId('ticket_internal_menu').setPlaceholder('خيارات التذكرة')
+            .addOptions([
+                { label: 'استلام التذكرة', value: 'claim', emoji: '📩' },
+                { label: 'استدعاء صاحب التذكرة', value: 'call', emoji: '🔔' },
+                { label: 'إغلاق التذكرة', value: 'close', emoji: '🔒' },
+                { label: 'حذف التذكرة', value: 'delete', emoji: '🗑️' }
+            ]);
+        await channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
+        return interaction.reply({ content: `✅ تم فتح تذكرتك: ${channel}`, ephemeral: true });
     }
 
-    if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_manage_menu') {
-        const val = interaction.values[0];
-        if (val === 'claim') {
-            await interaction.reply({ content: `تم استلام التذكرة بواسطة ${interaction.user}` });
-        } else if (val === 'summon') {
-            await interaction.reply({ content: `تم استدعاؤك بواسطة الادارة` });
-        } else if (val === 'close') {
-            await interaction.reply({ content: 'جاري إغلاق التذكرة...' });
-            setTimeout(() => interaction.channel.delete().catch(() => {}), 3000);
-        } else if (val === 'delete') {
-            await interaction.channel.delete().catch(() => {});
-        }
-    }
-
-    // Self Roles
-    if (interaction.isStringSelectMenu() && interaction.customId === 'self_roles_menu') {
-        const selectedRoles = interaction.values;
-        const member = interaction.member;
-        const cfg = DB.getConfig(interaction.guild.id);
-        const allRoles = cfg.selfRoles.map(sr => sr.roleId);
-
-        for (const rId of allRoles) {
-            if (selectedRoles.includes(rId)) {
-                if (!member.roles.cache.has(rId)) await member.roles.add(rId).catch(() => {});
-            } else {
-                if (member.roles.cache.has(rId)) await member.roles.remove(rId).catch(() => {});
-            }
-        }
-        return interaction.reply({ content: 'تم تحديث رتبك بنجاح', ephemeral: true });
-    }
-
-    // Suggestion Admin Action
-    if (interaction.isStringSelectMenu() && interaction.customId === 'suggestion_admin_action') {
-        const data = DB.getSuggestion(interaction.message.id);
-        if (!data) return interaction.reply({ content: 'غير موجود', ephemeral: true });
+    // Ticket Internal Menu
+    if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_internal_menu') {
         const action = interaction.values[0];
+        if (action === 'claim') {
+            return interaction.reply({ content: `✅ تم استلام التذكرة بواسطة <@${interaction.user.id}>` });
+        }
+        if (action === 'call') {
+            const topic = interaction.channel.name.split('-')[1];
+            const owner = interaction.guild.members.cache.find(m => m.user.username.toLowerCase() === topic.toLowerCase());
+            if(owner) return interaction.channel.send({ content: `<@${owner.id}>، تم استدعاؤك بواسطة الإدارة!` });
+            return interaction.reply({ content: '❌ لم يتم العثور على صاحب التذكرة.' });
+        }
+        if (action === 'close') {
+            return interaction.reply({ content: '🔒 تم إغلاق التذكرة.' });
+        }
         if (action === 'delete') {
-            await interaction.message.delete().catch(() => {});
-            DB.deleteSuggestion(interaction.message.id);
-            return interaction.reply({ content: 'تم الحذف', ephemeral: true });
+            await interaction.reply({ content: '🗑️ سيتم حذف التذكرة الآن...' });
+            return setTimeout(() => interaction.channel.delete().catch(() => {}), 2000);
         }
-        if (action === 'approve') {
-            data.status = 'تمت الموافقة';
-            DB.saveSuggestion(interaction.message.id, data);
-            const author = await client.users.fetch(data.userId).catch(() => ({ username: 'مستخدم' }));
-            const embed = buildSuggestionEmbed(author, data.text, data.imageUrl, data.status, data.replyText, data.votes);
-            await interaction.message.edit({ embeds: [embed], components: buildSuggestionMenu(data.threadId ? `https://discord.com/channels/${interaction.guild.id}/${interaction.channel.id}/${data.threadId}` : null) });
-            return interaction.reply({ content: 'تمت الموافقة', ephemeral: true });
-        }
-        if (action === 'reply') {
-            const modal = new ModalBuilder().setCustomId(`s_reply_${data.messageId}`).setTitle('الرد على الاقتراح').addComponents(
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('r_text').setLabel('الرد').setStyle(TextInputStyle.Paragraph).setRequired(true))
-            );
-            return interaction.showModal(modal);
-        }
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId.startsWith('s_reply_')) {
-        const mId = interaction.customId.replace('s_reply_', '');
-        const data = DB.getSuggestion(mId);
-        const replyText = interaction.fields.getTextInputValue('r_text');
-        data.replyText = replyText;
-        data.status = 'تم الرد';
-        const thread = await interaction.message.startThread({ name: 'رد الادارة', autoArchiveDuration: 60 }).catch(() => null);
-        if (thread) {
-            data.threadId = thread.id;
-            await thread.send(`رد الادارة: ${replyText}`);
-        }
-        DB.saveSuggestion(mId, data);
-        const author = await client.users.fetch(data.userId).catch(() => ({ username: 'مستخدم' }));
-        const threadUrl = thread ? `https://discord.com/channels/${interaction.guild.id}/${interaction.channel.id}/${thread.id}` : null;
-        const embed = buildSuggestionEmbed(author, data.text, data.imageUrl, data.status, replyText, data.votes);
-        await interaction.message.edit({ embeds: [embed], components: buildSuggestionMenu(threadUrl) });
-        return interaction.reply({ content: 'تم الرد بنجاح', ephemeral: true });
     }
 });
 
-client.on('messageReactionAdd', async (reaction, user) => {
-    if (user.bot) return;
-    if (reaction.partial) await reaction.fetch().catch(() => {});
-    const data = DB.getSuggestion(reaction.message.id);
-    if (!data) return;
-    if (reaction.emoji.name === '✅') data.votes.approve++;
-    if (reaction.emoji.name === '❌') data.votes.reject++;
-    DB.saveSuggestion(reaction.message.id, data);
-    const author = await client.users.fetch(data.userId).catch(() => ({ username: 'مستخدم' }));
-    const embed = buildSuggestionEmbed(author, data.text, data.imageUrl, data.status, data.replyText, data.votes);
-    await reaction.message.edit({ embeds: [embed] }).catch(() => {});
-});
-
-// ==========================================
-// 9. Kick Live Checker Background
-// ==========================================
-setInterval(async () => {
-    const guilds = client.guilds.cache.map(g => g.id);
-    for (const gId of guilds) {
-        const kData = DB.getKick(gId);
-        if (!kData || !kData.streamers) continue;
-        const g = client.guilds.cache.get(gId);
-        if (!g) continue;
-
-        for (const st of kData.streamers) {
-            try {
-                const res = await axios.get(`https://kick.com/api/v1/channels/${st.username}`, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-                const isLive = res.data?.livestream !== null;
-                const ch = g.channels.cache.get(st.channelId);
-                if (ch && isLive && !st.isLive) {
-                    st.isLive = true;
-                    const ls = res.data.livestream;
-                    const embed = new EmbedBuilder()
-                        .setTitle(`الستريمر ${st.username} فتح بث مباشر على كيك`)
-                        .setDescription(`التصنيف: ${ls.categories?.[0]?.name || 'غير معروف'}\nالمشاهدين: ${ls.viewer_count || 0}`)
-                        .setImage(ls.thumbnail?.url || '')
-                        .setColor(0x00e701);
-                    await ch.send({ embeds: [embed] });
-                } else if (!isLive) {
-                    st.isLive = false;
-                }
-            } catch (e) {}
-        }
-        DB.saveKick(gId, kData);
-    }
-}, 60000);
-
-// ==========================================
-// 10. Start Server
-// ==========================================
 client.login(process.env.DISCORD_TOKEN);
-app.listen(Number(process.env.PORT || 3000), () => {
-    console.log(`[Dashboard] Running on port ${process.env.PORT || 3000}`);
-});
+app.listen(Number(process.env.PORT || 3000));
