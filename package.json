@@ -1,26 +1,19 @@
 {
-  "name": "aboud-system",
-  "version": "1.0.0",
-  "description": "ABOUD SYSTEM - Discord Bot with Dashboard",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "engines": {
-    "node": "20.x"
-  },
-  "dependencies": {
-    "axios": "^1.7.7",
-    "canvas": "^2.11.2",
-    "discord.js": "^14.16.3",
-    "dotenv": "^16.4.5",
-    "ejs": "^3.1.10",
-    "express": "^4.21.1",
-    "express-session": "^1.18.1",
-    "mongoose": "^8.8.3",
-    "ms": "^2.1.3",
-    "multer": "^1.4.5-lts.1",
-    "passport": "^0.7.0",
-    "passport-discord": "^0.1.4"
-  }
+    "name": "nebula-discord-bot",
+    "version": "1.0.0",
+    "description": "Discord community bot with a dark animated dashboard (welcome, tickets, suggestions, moderation, leveling, giveaways, reminders, announcements)",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "dependencies": {
+        "discord.js": "^14.16.3",
+        "dotenv": "^16.4.5",
+        "express": "^4.21.2",
+        "express-session": "^1.18.1",
+        "multer": "^1.4.5-lts.1"
+    }
 }
