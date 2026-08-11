@@ -19,3 +19,5 @@
         "passport-discord": "^0.1.4",
         "mongoose": "^8.0.0",
         "canvas": "^2.11.2"
+    }
+}
