@@ -3016,17 +3016,17 @@ client.on('interactionCreate', async (interaction) => {
             const tConfig = await TicketConfig.findOne({ guildId: interaction.guild.id });
             const adminRole = tConfig?.adminRole;
             const isAdmin = adminRole && interaction.member.roles.cache.has(adminRole);
-            const isOwner = ticketData.ownerId === interaction.user.id;
+            
+            // تحقق عام: فقط الإدارة يمكنها استخدام هذه القائمة
+            if (!isAdmin) return interaction.reply({ content: 'هذه القائمة مخصصة لرتبة الإدارة فقط.', ephemeral: true });
 
             if (selected === 'claim_ticket') {
-                if (!isAdmin) return interaction.reply({ content: 'فقط الإدارة يمكنهم استلام التكت.', ephemeral: true });
                 ticketData.claimedBy = interaction.user.id;
                 await ticketData.save();
                 return interaction.reply({ content: `تم استلام التكت بواسطة ${interaction.user}.`, ephemeral: false });
             }
 
             if (selected === 'close_ticket') {
-                if (!isAdmin && !isOwner) return interaction.reply({ content: 'ليس لديك صلاحية لإغلاق التكت.', ephemeral: true });
                 ticketData.closedAt = new Date();
                 ticketData.closedBy = interaction.user.id;
                 await ticketData.save();
