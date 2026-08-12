@@ -1447,262 +1447,12 @@ app.post('/save/:guildId/welcome', checkAuth, upload.single('bgImage'), async (r
         'welcome.avatarWidth': Number(b.avatarWidth),
         'welcome.avatarHeight': Number(b.avatarHeight)
     };
-   if (req.file) updateData['welcome.imagePath'] = `/uploads/${req.file.filename}`;
+    if (req.file) updateData['welcome.imagePath'] = `/uploads/${req.file.filename}`;
     await GuildConfig.findOneAndUpdate({ guildId: req.params.guildId }, { $set: updateData }, { upsert: true });
     res.redirect(`/manage/${req.params.guildId}/welcome`);
 });
 
-// --- [ Security ] ---
-app.get('/manage/:guildId/security', checkAuth, async (req, res) => {
-    const g = client.guilds.cache.get(req.params.guildId);
-    if (!g) return res.redirect('/dashboard');
-    let s = await GuildConfig.findOne({ guildId: g.id }) || { security: {} };
-
-    const content = `
-    <form method="POST" action="/save/${g.id}/security">
-        <div class="card">
-            <h3>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                إعدادات الحماية
-            </h3>
-            <div class="toggle-row">
-                <label style="color:white; margin:0;">حظر الروابط</label>
-                <input type="checkbox" name="antiLinks" ${s.security?.antiLinks ? 'checked' : ''} style="width:20px; height:20px; accent-color:var(--blue); cursor:pointer;">
-            </div>
-            <label>الكلمات المحظورة (افصل بفاصلة)</label>
-            <input type="text" name="badWords" value="${s.security?.badWords || ''}" placeholder="كلمة1, كلمة2, ...">
-            <label>الإيموجيات المحظورة (افصل بفاصلة)</label>
-            <input type="text" name="badEmojis" value="${s.security?.badEmojis || ''}" placeholder="إيموجي1, إيموجي2, ...">
-            <label>رتب الاستثناء (لن تطبق عليهم الحماية)</label>
-            ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `
-            <div style="display:flex; align-items:center; gap:10px; margin:6px 0;">
-                <input type="checkbox" name="bypassRoles" value="${r.id}" id="bypass_${r.id}" ${s.security?.bypassRoles?.includes(r.id) ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--blue);">
-                <label for="bypass_${r.id}" style="margin:0; color:var(--text); cursor:pointer;">${r.name}</label>
-            </div>`).join('')}
-            <button class="btn-save" style="margin-top:20px;">حفظ الإعدادات</button>
-        </div>
-    </form>`;
-
-    res.send(ui(g, 'security', content));
-});
-
-app.post('/save/:guildId/security', checkAuth, async (req, res) => {
-    const b = req.body;
-    const bypassRoles = Array.isArray(b.bypassRoles) ? b.bypassRoles : (b.bypassRoles ? [b.bypassRoles] : []);
-    await GuildConfig.findOneAndUpdate(
-        { guildId: req.params.guildId },
-        { $set: { security: { antiLinks: b.antiLinks === 'on', badWords: b.badWords, badEmojis: b.badEmojis, bypassRoles } } },
-        { upsert: true }
-    );
-    res.redirect(`/manage/${req.params.guildId}/security`);
-});
-
-// --- [ Auto Reply ] ---
-app.get('/manage/:guildId/autoreply', checkAuth, async (req, res) => {
-    const g = client.guilds.cache.get(req.params.guildId);
-    if (!g) return res.redirect('/dashboard');
-    let s = await GuildConfig.findOne({ guildId: g.id }) || { autoReply: [] };
-
-    const rows = Array.from({ length: 15 }, (_, i) => `
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; padding:14px; background:rgba(0,0,0,0.2); border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
-        <input name="trigger_${i}" value="${s.autoReply?.[i]?.trigger || ''}" placeholder="الكلمة المحفزة ${i + 1}">
-        <input name="reply_${i}" value="${s.autoReply?.[i]?.reply || ''}" placeholder="الرد التلقائي ${i + 1}">
-    </div>`).join('');
-
-    const content = `
-    <form method="POST" action="/save/${g.id}/autoreply">
-        <div class="card">
-            <h3>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                الرد الآلي (حتى 15 رد)
-            </h3>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 12px; margin-bottom:8px; padding:0 14px;">
-                <span style="color:var(--text-muted); font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">الكلمة المحفزة</span>
-                <span style="color:var(--text-muted); font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px;">الرد</span>
-            </div>
-            ${rows}
-            <button class="btn-save" style="margin-top:8px;">حفظ الردود</button>
-        </div>
-    </form>`;
-
-    res.send(ui(g, 'autoreply', content));
-});
-
-app.post('/save/:guildId/autoreply', checkAuth, async (req, res) => {
-    try {
-        const { guildId } = req.params;
-        const finalData = [];
-        for (let i = 0; i < 15; i++) {
-            const t = req.body[`trigger_${i}`]?.trim();
-            const r = req.body[`reply_${i}`]?.trim();
-            if (t && r) finalData.push({ trigger: t, reply: r });
-        }
-        await GuildConfig.findOneAndUpdate({ guildId }, { $set: { autoReply: finalData } }, { upsert: true, new: true });
-        res.redirect(`/manage/${guildId}/autoreply`);
-    } catch (err) {
-        console.error('[AutoReply Save Error]', err);
-        res.status(500).send('خطأ في حفظ الردود');
-    }
-});
-
-// --- [ Giveaway ] ---
-app.get('/manage/:guildId/giveaway', checkAuth, async (req, res) => {
-    const g = client.guilds.cache.get(req.params.guildId);
-    if (!g) return res.redirect('/dashboard');
-    const activeGiveaways = await Giveaway.find({ guildId: g.id, ended: false });
-
-    const content = `
-    <div class="card">
-        <h3>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polyline points="20,12 20,22 4,22 4,12"/><rect x="2" y="7" width="20" height="5"/></svg>
-            إنشاء قيف اواي جديد
-        </h3>
-        <form method="POST" action="/save/${g.id}/giveaway">
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                <div>
-                    <label>الجائزة</label>
-                    <input name="prize" placeholder="اسم الجائزة" required>
-                </div>
-                <div>
-                    <label>المدة (مثال: 1d أو 1h أو 30m)</label>
-                    <input name="duration" placeholder="1h" required>
-                </div>
-                <div>
-                    <label>عدد الفائزين</label>
-                    <input type="number" name="winners" value="1" min="1">
-                </div>
-                <div>
-                    <label>قناة الإرسال</label>
-                    <select name="channel">
-                        ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}
-                    </select>
-                </div>
-            </div>
-            <label>الوصف (اختياري)</label>
-            <textarea name="description" placeholder="وصف الجائزة..."></textarea>
-            <button class="btn-save btn-green" style="margin-top:16px;">تشغيل القيف اواي</button>
-        </form>
-    </div>
-    ${activeGiveaways.length > 0 ? `
-    <div class="card">
-        <h3>القيف اوايات النشطة</h3>
-        ${activeGiveaways.map(gw => `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:14px; background:rgba(0,0,0,0.2); border-radius:10px; margin-bottom:10px; border:1px solid var(--border);">
-            <div>
-                <span style="color:white; font-weight:700;">${gw.prize}</span>
-                <span class="tag tag-blue" style="margin-right:10px;">${gw.winnersCount} فائز</span>
-            </div>
-            <span style="color:var(--text-muted); font-size:13px;">ينتهي <t:${Math.floor(gw.endAt / 1000)}:R></span>
-        </div>`).join('')}
-    </div>` : ''}`;
-
-    res.send(ui(g, 'giveaway', content));
-});
-
-app.post('/save/:guildId/giveaway', checkAuth, async (req, res) => {
-    const { prize, duration, winners, channel, description } = req.body;
-    const g = client.guilds.cache.get(req.params.guildId);
-    if (!g) return res.status(404).send('السيرفر غير موجود');
-    const timeMs = ms(duration);
-    if (!timeMs) return res.send('خطأ في صيغة الوقت! استخدم 1h أو 1d أو 30m');
-    const endAt = new Date(Date.now() + timeMs);
-    const targetCh = g.channels.cache.get(channel);
-    if (!targetCh) return res.send('الروم غير موجود');
-
-    const embed = new EmbedBuilder()
-        .setTitle(`قيف اواي: ${prize}`)
-        .setDescription(`${description || 'لا يوجد وصف'}\n\nينتهي: <t:${Math.floor(endAt / 1000)}:R>\nعدد الفائزين: ${winners}`)
-        .setColor(0x1e90ff)
-        .setFooter({ text: 'اضغط على رد فعل للاشتراك' });
-
-    const giveawayMsg = await targetCh.send({ embeds: [embed] });
-    await giveawayMsg.react('🎉');
-    await Giveaway.create({ guildId: g.id, messageId: giveawayMsg.id, channelId: channel, endAt, winnersCount: parseInt(winners), prize, description });
-    res.redirect(`/manage/${g.id}/giveaway`);
-});
-
 // --- [ Tickets ] ---
-app.get('/manage/:guildId/tickets', checkAuth, async (req, res) => {
-    const g = client.guilds.cache.get(req.params.guildId);
-    if (!g) return res.redirect('/dashboard');
-    let s = await TicketConfig.findOne({ guildId: g.id }) || { buttons: [], menuOptions: [] };
-    let topImg = s.topImagePath ? `/uploads/${path.basename(s.topImagePath)}` : 'https://placehold.co/110x110?text=Top';
-    let bottomImg = s.bottomImagePath ? `/uploads/${path.basename(s.bottomImagePath)}` : 'https://placehold.co/110x110?text=Bottom';
-
-    const content = `
-    <form action="/save/${g.id}/tickets" method="POST" enctype="multipart/form-data">
-        <div class="card">
-            <h3>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z"/></svg>
-                إعداد نظام التذاكر
-            </h3>
-
-            <div style="display:flex; gap:30px; justify-content:center; margin-bottom:24px;">
-                <div style="text-align:center;">
-                    <div style="color:var(--text-muted); font-size:12px; margin-bottom:8px;">الصورة العلوية</div>
-                    <img src="${topImg}" style="width:100px; height:100px; object-fit:cover; border-radius:12px; border:1px solid var(--border);">
-                    <label style="display:block; margin-top:8px; background:var(--blue-glow); border:1px solid var(--border); color:var(--blue); padding:6px 14px; border-radius:8px; cursor:pointer; font-size:12px;">
-                        تغيير <input type="file" name="topImage" style="display:none;" accept="image/*">
-                    </label>
-                </div>
-                <div style="text-align:center;">
-                    <div style="color:var(--text-muted); font-size:12px; margin-bottom:8px;">الصورة السفلية</div>
-                    <img src="${bottomImg}" style="width:100px; height:100px; object-fit:cover; border-radius:12px; border:1px solid var(--border);">
-                    <label style="display:block; margin-top:8px; background:var(--blue-glow); border:1px solid var(--border); color:var(--blue); padding:6px 14px; border-radius:8px; cursor:pointer; font-size:12px;">
-                        تغيير <input type="file" name="bottomImage" style="display:none;" accept="image/*">
-                    </label>
-                </div>
-            </div>
-
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                <div>
-                    <label>عنوان التذكرة</label>
-                    <input name="title" value="${s.title || ''}" placeholder="عنوان نظام التذاكر">
-                </div>
-                <div>
-                    <label>رتبة الإدارة</label>
-                    <select name="adminRole">
-                        <option value="">-- اختر رتبة الإدارة --</option>
-                        ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.adminRole === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
-                    </select>
-                </div>
-            </div>
-            <label>الوصف</label>
-            <textarea name="description">${s.description || ''}</textarea>
-
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:16px;">
-                <div>
-                    <div style="color:var(--blue); font-size:13px; font-weight:700; margin-bottom:10px;">الازرار (حتى 4)</div>
-                    ${[0,1,2,3].map(i => `
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
-                        <input name="btn_label_${i}" value="${s.buttons?.[i]?.label || ''}" placeholder="نص الزر ${i+1}">
-                        <input name="btn_emoji_${i}" value="${s.buttons?.[i]?.emoji || ''}" placeholder="ايموجي">
-                        <select name="btn_role_${i}">
-                            <option value="">-- رتبة القسم --</option>
-                            ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.buttons?.[i]?.roleId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
-                        </select>
-                    </div>`).join('')}
-                </div>
-                <div>
-                    <div style="color:var(--blue); font-size:13px; font-weight:700; margin-bottom:10px;">خيارات المنيو (حتى 4)</div>
-                    ${[0,1,2,3].map(i => `
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
-                        <input name="menu_label_${i}" value="${s.menuOptions?.[i]?.label || ''}" placeholder="نص الخيار ${i+1}">
-                        <input name="menu_emoji_${i}" value="${s.menuOptions?.[i]?.emoji || ''}" placeholder="ايموجي">
-                        <select name="menu_role_${i}">
-                            <option value="">-- رتبة القسم --</option>
-                            ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.menuOptions?.[i]?.roleId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
-                        </select>
-                    </div>`).join('')}
-            </div>
-            </div>
-            <button class="btn-save" style="margin-top:12px;">حفظ اللوحة</button>
-        </form>
-    </div>`;
-
-        res.send(ui(g, 'tickets', content));
-});
-
 app.post('/save/:guildId/tickets', checkAuth, upload.fields([{ name: 'topImage' }, { name: 'bottomImage' }]), async (req, res) => {
     try {
         const b = req.body;
@@ -1723,6 +1473,8 @@ app.post('/save/:guildId/tickets', checkAuth, upload.fields([{ name: 'topImage' 
         }
 
         let updateData = { 
+            guildId,
+            channelId: b.targetChannel,
             title: b.title, 
             description: b.description, 
             color: b.color || '#1e90ff', 
@@ -1734,7 +1486,55 @@ app.post('/save/:guildId/tickets', checkAuth, upload.fields([{ name: 'topImage' 
         if (req.files?.topImage?.[0]) updateData.topImagePath = req.files.topImage[0].path;
         if (req.files?.bottomImage?.[0]) updateData.bottomImagePath = req.files.bottomImage[0].path;
 
-        await TicketConfig.findOneAndUpdate({ guildId }, { $set: updateData }, { upsert: true, new: true });
+        const config = await TicketConfig.findOneAndUpdate({ guildId }, { $set: updateData }, { upsert: true, new: true });
+        
+        if (b.targetChannel) {
+            const channel = g.channels.cache.get(b.targetChannel);
+            if (channel) {
+                const files = [];
+                const embed = new EmbedBuilder()
+                    .setTitle(config.title || 'نظام التذاكر')
+                    .setDescription(config.description || 'اضغط لفتح تذكرة')
+                    .setColor(parseInt((config.color || '#1e90ff').replace('#', ''), 16));
+
+                if (config.topImagePath && fs.existsSync(config.topImagePath)) {
+                    const topName = path.basename(config.topImagePath);
+                    files.push(new AttachmentBuilder(config.topImagePath, { name: topName }));
+                    embed.setThumbnail(`attachment://${topName}`);
+                }
+                if (config.bottomImagePath && fs.existsSync(config.bottomImagePath)) {
+                    const bottomName = path.basename(config.bottomImagePath);
+                    files.push(new AttachmentBuilder(config.bottomImagePath, { name: bottomName }));
+                    embed.setImage(`attachment://${bottomName}`);
+                }
+
+                const rows = [];
+                if (config.buttons?.length > 0) {
+                    const btnRow = new ActionRowBuilder();
+                    config.buttons.forEach((btn, i) => {
+                        const button = new ButtonBuilder().setCustomId(`ticket_btn_${i}`).setLabel(btn.label).setStyle(ButtonStyle.Primary);
+                        if (btn.emoji) {
+                            try {
+                                if (/^\d+$/.test(btn.emoji)) button.setEmoji({ id: btn.emoji });
+                                else button.setEmoji(btn.emoji);
+                            } catch (e) {}
+                        }
+                        btnRow.addComponents(button);
+                    });
+                    rows.push(btnRow);
+                }
+                
+                if (config.menuOptions?.length > 0) {
+                    const menu = new StringSelectMenuBuilder().setCustomId('ticket_menu').setPlaceholder('اختر نوع التذكرة');
+                    config.menuOptions.forEach((opt, i) => {
+                        menu.addOptions({ label: opt.label, value: `ticket_opt_${i}`, emoji: opt.emoji || undefined });
+                    });
+                    rows.push(new ActionRowBuilder().addComponents(menu));
+                }
+
+                await channel.send({ embeds: [embed], components: rows, files }).catch(e => console.error('[Send Ticket Panel Error]', e));
+            }
+        }
         res.redirect(`/manage/${guildId}/tickets`);
     } catch (err) {
         console.error('[Ticket Save Error]', err);
@@ -1776,7 +1576,13 @@ app.get('/manage/:guildId/roles', checkAuth, async (req, res) => {
                     <input name="role_label_${i}" value="${s.rolesPanel?.[i]?.label || ''}" placeholder="نص الزر ${i+1}">
                 </div>`).join('')}
             </div>
-            <button class="btn-save" style="margin-top:12px;">حفظ اللوحة</button>
+            
+            <label style="margin-top:16px;">قناة إرسال لوحة التذاكر</label>
+            <select name="targetChannel">
+                <option value="">-- اختر القناة للإرسال --</option>
+                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${s.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
+            </select>
+            <button class="btn-save" style="margin-top:12px;">حفظ وإرسال اللوحة</button>
         </form>
     </div>`;
 
