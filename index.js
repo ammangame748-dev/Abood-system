@@ -546,6 +546,10 @@ function ui(guild, active, content) {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polyline points="20,12 20,22 4,22 4,12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
             القيف اواي
         </a>
+        <a class="${active === 'bulk_role' ? 'active' : ''}" href="/manage/${guild.id}/bulk-role">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            توزيع الرتب
+        </a>
         <a class="${active === 'roles' ? 'active' : ''}" href="/manage/${guild.id}/roles">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             الرتب
@@ -948,6 +952,131 @@ function ui(guild, active, content) {
 // ==========================================
 // 9. Dashboard Routes
 // ==========================================
+
+// --- [ Dashboard - Bulk Role Assignment ] ---
+app.get('/manage/:guildId/bulk-role', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    if (!g) return res.redirect('/dashboard');
+
+    const roles = g.roles.cache
+        .filter(r => r.id !== g.id && !r.managed)
+        .sort((a, b) => b.position - a.position);
+
+    let rolesOptions = '';
+    roles.forEach(r => {
+        rolesOptions += `<option value="${r.id}" style="color:${r.hexColor || '#fff'}">@${r.name}</option>`;
+    });
+
+    const channels = g.channels.cache
+        .filter(c => c.type === ChannelType.GuildText)
+        .sort((a, b) => a.position - b.position);
+
+    let channelsOptions = '';
+    channels.forEach(c => {
+        channelsOptions += `<option value="${c.id}">#${c.name}</option>`;
+    });
+
+    const successQuery = req.query.success;
+    const alertHtml = successQuery ? `
+        <div style="background:rgba(0,200,83,0.15); border:1px solid #00c853; padding:15px; border-radius:12px; margin-bottom:20px; color:#00c853; font-weight:700;">
+            ✅ تم بدء عملية توزيع الرتبة في الخلفية بنجاح! سيتم إرسال تقرير بالنتائج إلى القناة المحددة فور الانتهاء.
+        </div>
+    ` : '';
+
+    const content = `
+        <div class="card">
+            <h2 style="margin-bottom:10px;">توزيع رتبة جماعية لجميع الأعضاء</h2>
+            <p style="color:#888; font-size:13px; margin-bottom:30px;">اختر الرتبة التي تريد منحها لجميع أعضاء السيرفر دفعة واحدة (حتى 3000 شخص أو أكثر)، واختر القناة التي سيتم إرسال تقرير مفصل فيها بالنتائج ومن وصلتهم الرتبة.</p>
+            ${alertHtml}
+            <form method="POST" action="/save/${g.id}/bulk-role">
+                <div style="margin-bottom:20px;">
+                    <label style="display:block; font-weight:800; margin-bottom:8px;">اختر الرتبة المراد توزيعها</label>
+                    <select name="roleId" style="width:100%; padding:14px; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:12px; color:white; font-family:'Changa',sans-serif;" required>
+                        <option value="" disabled selected>-- اختر رتبة --</option>
+                        ${rolesOptions}
+                    </select>
+                </div>
+                <div style="margin-bottom:30px;">
+                    <label style="display:block; font-weight:800; margin-bottom:8px;">اختر قناة إرسال تقرير النتائج</label>
+                    <select name="channelId" style="width:100%; padding:14px; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:12px; color:white; font-family:'Changa',sans-serif;" required>
+                        <option value="" disabled selected>-- اختر قناة --</option>
+                        ${channelsOptions}
+                    </select>
+                </div>
+                <button type="submit" class="btn-save" style="font-size:16px; padding:15px; width:100%; background:linear-gradient(135deg, #00c853, #007e33);">🚀 بدء توزيع الرتبة على جميع الأعضاء الآن</button>
+            </form>
+        </div>
+    `;
+    res.send(ui(g, 'bulk_role', content));
+});
+
+app.post('/save/:guildId/bulk-role', checkAuth, async (req, res) => {
+    const guildId = req.params.guildId;
+    const { roleId, channelId } = req.body;
+
+    const g = client.guilds.cache.get(guildId);
+    if (!g) return res.redirect('/dashboard');
+
+    res.redirect(`/manage/${guildId}/bulk-role?success=1`);
+
+    (async () => {
+        try {
+            await g.members.fetch();
+            const role = g.roles.cache.get(roleId);
+            const channel = g.channels.cache.get(channelId);
+            if (!role || !channel) return;
+
+            let successList = [];
+            let alreadyHasList = [];
+            let failedList = [];
+
+            for (const [memberId, member] of g.members.cache) {
+                if (member.user.bot) continue;
+                try {
+                    if (!member.roles.cache.has(roleId)) {
+                        await member.roles.add(role);
+                        successList.push(`<@${memberId}>`);
+                        await new Promise(r => setTimeout(r, 120));
+                    } else {
+                        alreadyHasList.push(`<@${memberId}>`);
+                    }
+                } catch (err) {
+                    failedList.push(`<@${memberId}>`);
+                }
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle('📊 تقرير توزيع الرتبة الجماعي')
+                .setDescription(`تم إكمال عملية منح الرتبة **@${role.name}** لجميع أعضاء السيرفر بنجاح.`)
+                .addFields(
+                    { name: '✅ تم منحها لـ', value: `${successList.length} عضو`, inline: true },
+                    { name: 'ℹ️ يمتلكونها مسبقاً', value: `${alreadyHasList.length} عضو`, inline: true },
+                    { name: '❌ فشل (صلاحيات / أخطاء)', value: `${failedList.length} عضو`, inline: true }
+                )
+                .setColor(0x00ff88)
+                .setTimestamp();
+
+            await channel.send({ embeds: [embed] });
+
+            if (successList.length > 0) {
+                let chunkText = '**📋 قائمة الأعضاء الذين وصلتهم الرتبة:**\n';
+                for (const entry of successList) {
+                    if ((chunkText + entry + ', ').length > 1950) {
+                        await channel.send(chunkText);
+                        chunkText = '';
+                    }
+                    chunkText += entry + ' ';
+                }
+                if (chunkText.trim().length > 30) {
+                    await channel.send(chunkText);
+                }
+            }
+        } catch (e) {
+            console.error('[Bulk Role Background Error]', e);
+        }
+    })();
+});
+
 
 // --- [ Dashboard - Admin Commands ] ---
 app.get('/manage/:guildId/admincmds', checkAuth, async (req, res) => {
