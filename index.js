@@ -55,6 +55,7 @@ const TicketData = mongoose.model('TicketData', new mongoose.Schema({
     channelId: String,
     ownerId: String,
     ticketType: { type: String, default: 'تذكرة دعم' },
+    adminRoleId: String,
     claimedBy: String,
     openedAt: Date,
     closedAt: Date,
@@ -377,7 +378,7 @@ app.get('/login', (req, res) => {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --blue: #39FF14;
+            --blue: #1e90ff;
             --blue-dark: #0a6ecc;
             --red: #e63946;
             --red-light: #ff6b6b;
@@ -398,14 +399,14 @@ app.get('/login', (req, res) => {
         }
         .bg-particles {
             position: fixed; inset: 0; z-index: 0;
-            background: radial-gradient(ellipse at 20% 50%, rgba(57,255,20,0.08) 0%, transparent 60%),
+            background: radial-gradient(ellipse at 20% 50%, rgba(30,144,255,0.08) 0%, transparent 60%),
                         radial-gradient(ellipse at 80% 20%, rgba(230,57,70,0.06) 0%, transparent 50%),
-                        radial-gradient(ellipse at 50% 80%, rgba(57,255,20,0.05) 0%, transparent 50%);
+                        radial-gradient(ellipse at 50% 80%, rgba(30,144,255,0.05) 0%, transparent 50%);
         }
         .grid-bg {
             position: fixed; inset: 0; z-index: 0;
-            background-image: linear-gradient(rgba(57,255,20,0.04) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(57,255,20,0.04) 1px, transparent 1px);
+            background-image: linear-gradient(rgba(30,144,255,0.04) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(30,144,255,0.04) 1px, transparent 1px);
             background-size: 50px 50px;
         }
         .login-wrapper {
@@ -419,12 +420,12 @@ app.get('/login', (req, res) => {
             font-size: 64px; font-weight: 800; letter-spacing: 8px;
             background: linear-gradient(135deg, var(--blue), #ffffff, var(--red));
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 0 30px rgba(57,255,20,0.4));
+            filter: drop-shadow(0 0 30px rgba(30,144,255,0.4));
             animation: logoGlow 3s ease-in-out infinite alternate;
         }
         @keyframes logoGlow {
-            from { filter: drop-shadow(0 0 20px rgba(57,255,20,0.3)); }
-            to   { filter: drop-shadow(0 0 50px rgba(57,255,20,0.7)); }
+            from { filter: drop-shadow(0 0 20px rgba(30,144,255,0.3)); }
+            to   { filter: drop-shadow(0 0 50px rgba(30,144,255,0.7)); }
         }
         .logo-sub {
             color: rgba(255,255,255,0.4); font-size: 14px; letter-spacing: 4px; margin-top: 5px;
@@ -436,7 +437,7 @@ app.get('/login', (req, res) => {
             padding: 50px 60px;
             text-align: center;
             backdrop-filter: blur(30px);
-            box-shadow: 0 0 60px rgba(57,255,20,0.1), 0 0 120px rgba(0,0,0,0.5);
+            box-shadow: 0 0 60px rgba(30,144,255,0.1), 0 0 120px rgba(0,0,0,0.5);
             min-width: 380px;
             position: relative;
             overflow: hidden;
@@ -458,12 +459,12 @@ app.get('/login', (req, res) => {
             background: linear-gradient(135deg, var(--blue), var(--blue-dark));
             color: white; padding: 16px 40px; border-radius: 14px;
             text-decoration: none; font-weight: 700; font-size: 16px;
-            transition: all 0.3s; border: 1px solid rgba(57,255,20,0.3);
-            box-shadow: 0 8px 30px rgba(57,255,20,0.3);
+            transition: all 0.3s; border: 1px solid rgba(30,144,255,0.3);
+            box-shadow: 0 8px 30px rgba(30,144,255,0.3);
         }
         .btn-discord:hover {
             transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(57,255,20,0.5);
+            box-shadow: 0 15px 40px rgba(30,144,255,0.5);
             filter: brightness(1.1);
         }
     </style>
@@ -565,9 +566,9 @@ function ui(guild, active, content) {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --blue: #39FF14;
+            --blue: #1e90ff;
             --blue-dark: #0a6ecc;
-            --blue-glow: rgba(57,255,20,0.15);
+            --blue-glow: rgba(30,144,255,0.15);
             --gold: #ffb703;
             --gold-glow: rgba(255,183,3,0.15);
             --red: #e63946;
@@ -578,7 +579,7 @@ function ui(guild, active, content) {
             --darker: #07070f;
             --card: rgba(12,12,24,0.75);
             --card-hover: rgba(18,18,34,0.9);
-            --border: rgba(57,255,20,0.18);
+            --border: rgba(30,144,255,0.18);
             --border-red: rgba(230,57,70,0.18);
             --text: #e8eaf6;
             --text-muted: rgba(255,255,255,0.45);
@@ -602,7 +603,7 @@ function ui(guild, active, content) {
             content: '';
             position: fixed; inset: 0; z-index: -3;
             background:
-                radial-gradient(ellipse at 10% 20%, rgba(57,255,20,0.09) 0%, transparent 50%),
+                radial-gradient(ellipse at 10% 20%, rgba(30,144,255,0.09) 0%, transparent 50%),
                 radial-gradient(ellipse at 90% 80%, rgba(230,57,70,0.06) 0%, transparent 50%),
                 radial-gradient(ellipse at 60% 10%, rgba(255,183,3,0.05) 0%, transparent 45%),
                 radial-gradient(ellipse at 50% 50%, rgba(10,10,30,1) 0%, rgba(5,5,8,1) 100%);
@@ -611,8 +612,8 @@ function ui(guild, active, content) {
             content: '';
             position: fixed; inset: 0; z-index: -2;
             background-image:
-                linear-gradient(rgba(57,255,20,0.025) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(57,255,20,0.025) 1px, transparent 1px);
+                linear-gradient(rgba(30,144,255,0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30,144,255,0.025) 1px, transparent 1px);
             background-size: 60px 60px;
         }
         .orb {
@@ -630,7 +631,7 @@ function ui(guild, active, content) {
 
         /* ===== SIDEBAR ===== */
         .sidebar {
-            width: var(--sidebar-w); position: fixed; right: 0; top: 0; bottom: 0;
+            width: var(--sidebar-w);
             background: rgba(7,7,15,0.95);
             border-left: 1px solid var(--border);
             position: relative;
@@ -660,8 +661,8 @@ function ui(guild, active, content) {
             animation: logoShimmer 4s ease-in-out infinite alternate;
         }
         @keyframes logoShimmer {
-            from { filter: drop-shadow(0 0 8px rgba(57,255,20,0.4)); }
-            to   { filter: drop-shadow(0 0 20px rgba(57,255,20,0.8)); }
+            from { filter: drop-shadow(0 0 8px rgba(30,144,255,0.4)); }
+            to   { filter: drop-shadow(0 0 20px rgba(30,144,255,0.8)); }
         }
         .sidebar-tagline {
             font-size: 10px; letter-spacing: 3px; color: var(--text-muted);
@@ -693,11 +694,11 @@ function ui(guild, active, content) {
         }
         .nav a:hover svg { opacity: 1; }
         .nav a.active {
-            background: linear-gradient(135deg, rgba(57,255,20,0.22), rgba(57,255,20,0.08));
+            background: linear-gradient(135deg, rgba(30,144,255,0.22), rgba(30,144,255,0.08));
             color: var(--blue);
-            border-color: rgba(57,255,20,0.4);
+            border-color: rgba(30,144,255,0.4);
             font-weight: 700;
-            box-shadow: 0 0 18px rgba(57,255,20,0.18) inset;
+            box-shadow: 0 0 18px rgba(30,144,255,0.18) inset;
         }
         .nav a.active svg { opacity: 1; color: var(--blue); }
         .nav a.active::before {
@@ -711,7 +712,7 @@ function ui(guild, active, content) {
 
         /* ===== MAIN CONTENT ===== */
         .main {
-            margin-right: var(--sidebar-w);
+            margin-right: 0;
             padding: 40px 50px;
             flex: 1;
             min-height: 100vh;
@@ -750,9 +751,9 @@ function ui(guild, active, content) {
             opacity: 0.5;
         }
         .card:hover {
-            border-color: rgba(57,255,20,0.4);
+            border-color: rgba(30,144,255,0.4);
             transform: translateY(-3px);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.35), 0 0 30px rgba(57,255,20,0.08);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.35), 0 0 30px rgba(30,144,255,0.08);
         }
         .card h3 {
             color: white; font-size: 17px; font-weight: 700;
@@ -776,7 +777,7 @@ function ui(guild, active, content) {
         }
         input:focus, select:focus, textarea:focus {
             border-color: var(--blue);
-            box-shadow: 0 0 0 3px rgba(57,255,20,0.12);
+            box-shadow: 0 0 0 3px rgba(30,144,255,0.12);
         }
         select option { background: #0d0d1a; color: white; }
         textarea { resize: vertical; min-height: 100px; }
@@ -789,7 +790,7 @@ function ui(guild, active, content) {
             font-size: 14px; font-family: 'Changa', sans-serif;
             transition: all 0.3s; display: inline-block; text-decoration: none;
             text-align: center; width: 100%;
-            box-shadow: 0 4px 20px rgba(57,255,20,0.25);
+            box-shadow: 0 4px 20px rgba(30,144,255,0.25);
             position: relative; overflow: hidden;
         }
         .btn-save::after {
@@ -802,7 +803,7 @@ function ui(guild, active, content) {
         .btn-save:hover::after { left: 130%; }
         .btn-save:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(57,255,20,0.4);
+            box-shadow: 0 8px 30px rgba(30,144,255,0.4);
             filter: brightness(1.1);
         }
         .btn-danger {
@@ -848,7 +849,7 @@ function ui(guild, active, content) {
         .guild-card:hover {
             transform: translateY(-8px);
             border-color: var(--blue);
-            box-shadow: 0 20px 50px rgba(57,255,20,0.15);
+            box-shadow: 0 20px 50px rgba(30,144,255,0.15);
         }
         .guild-icon {
             width: 75px; height: 75px; border-radius: 50%;
@@ -870,7 +871,7 @@ function ui(guild, active, content) {
             padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.04);
             font-size: 14px; color: var(--text);
         }
-        .data-table tr:hover td { background: rgba(57,255,20,0.04); }
+        .data-table tr:hover td { background: rgba(30,144,255,0.04); }
 
         /* ===== BADGE ===== */
         .tag {
@@ -907,7 +908,7 @@ function ui(guild, active, content) {
         /* ===== SCROLLBAR ===== */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(57,255,20,0.3); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: rgba(30,144,255,0.3); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--blue); }
 
         /* ===== RESPONSIVE ===== */
@@ -991,7 +992,7 @@ app.get('/manage/:guildId/admincmds', checkAuth, async (req, res) => {
             <h2 style="margin-bottom:10px;">الأوامر الإدارية المتقدمة</h2>
             <p style="color:#666; font-size:13px; margin-bottom:30px;">تحكم في اختصارات الأوامر وطريقة تفاعل البوت معها في السيرفر.</p>
             <form method="POST" action="/save/${g.id}/admincmds">
-                <div class="card" style="background:rgba(57,255,20,0.05); border:1px dashed var(--blue);">
+                <div class="card" style="background:rgba(30,144,255,0.05); border:1px dashed var(--blue);">
                     <label style="font-weight:800;">الرتب المسموح لها (IDs مفصولة بفاصلة)</label>
                     <input type="text" name="adminRoles" value="${config.adminRoles.join(',')}" placeholder="مثلاً: 123456789,987654321">
                 </div>
@@ -1031,7 +1032,7 @@ app.get('/dashboard', checkAuth, (req, res) => {
         const p = BigInt(g.permissions);
         return (p & 8n) === 8n || (p & 32n) === 32n;
     });
-    const inviteLink = `https://discord.com/oauth2/authorize?client_id=${process.env.CLIENT_ID}&permissions=8&scope=bot%20applications.commands`;
+    const inviteLink = 'https://discord.com/oauth2/authorize?client_id=' + process.env.CLIENT_ID + '&permissions=8&scope=bot%20applications.commands';
 
     const cards = adminGuilds.map(g => {
         const hasBot = client.guilds.cache.has(g.id);
@@ -1058,7 +1059,7 @@ app.get('/dashboard', checkAuth, (req, res) => {
             margin-bottom:10px;">Abood System </div>
         <p style="color:var(--text-muted); font-size:15px;">اختر السيرفر لإدارته</p>
         <div style="margin-top:20px; max-width:400px; margin-left:auto; margin-right:auto;">
-            <input type="text" id="guildSearch" placeholder="ابحث عن سيرفر..." onkeyup="filterGuilds()" style="text-align:center; border-radius:20px; background:rgba(57,255,20,0.05); border:1px solid var(--border);">
+            <input type="text" id="guildSearch" placeholder="ابحث عن سيرفر..." onkeyup="filterGuilds()" style="text-align:center; border-radius:20px; background:rgba(30,144,255,0.05); border:1px solid var(--border);">
         </div>
     </div>
     <div class="guild-grid" id="guildGrid">${cards}</div>
@@ -1596,7 +1597,7 @@ app.post('/save/:guildId/giveaway', checkAuth, async (req, res) => {
     const embed = new EmbedBuilder()
         .setTitle(`قيف اواي: ${prize}`)
         .setDescription(`${description || 'لا يوجد وصف'}\n\nينتهي: <t:${Math.floor(endAt / 1000)}:R>\nعدد الفائزين: ${winners}`)
-        .setColor(0x39FF14)
+        .setColor(0x1e90ff)
         .setFooter({ text: 'اضغط على رد فعل للاشتراك' });
 
     const giveawayMsg = await targetCh.send({ embeds: [embed] });
@@ -1643,13 +1644,7 @@ app.get('/manage/:guildId/tickets', checkAuth, async (req, res) => {
                     <label>عنوان التذكرة</label>
                     <input name="title" value="${s.title || ''}" placeholder="عنوان نظام التذاكر">
                 </div>
-                <div>
-                    <label>رتبة الإدارة</label>
-                    <select name="adminRole">
-                        <option value="">-- اختر رتبة الإدارة --</option>
-                        ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.adminRole === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
-                    </select>
-                </div>
+                
             </div>
             <label>الوصف</label>
             <textarea name="description">${s.description || ''}</textarea>
@@ -1657,28 +1652,38 @@ app.get('/manage/:guildId/tickets', checkAuth, async (req, res) => {
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:16px;">
                 <div>
                     <div style="color:var(--blue); font-size:13px; font-weight:700; margin-bottom:10px;">الازرار (حتى 4)</div>
-                    ${[0,1,2,3].map(i => `
-                    <div style="display:grid; grid-template-columns:2fr 1fr; gap:8px; margin-bottom:8px;">
+${[0,1,2,3].map(i => `
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
                         <input name="btn_label_${i}" value="${s.buttons?.[i]?.label || ''}" placeholder="نص الزر ${i+1}">
-                        <input name="btn_emoji_${i}" value="${s.buttons?.[i]?.emoji || ''}" placeholder="ID الإيموجي">
+                        <input name="btn_emoji_${i}" value="${s.buttons?.[i]?.emoji || ''}" placeholder="ايموجي">
+                        <select name="btn_role_${i}">
+                            <option value="">-- رتبة القسم --</option>
+                            ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.buttons?.[i]?.roleId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
+                        </select>
                     </div>`).join('')}
                 </div>
                 <div>
                     <div style="color:var(--blue); font-size:13px; font-weight:700; margin-bottom:10px;">خيارات المنيو (حتى 4)</div>
-                    ${[0,1,2,3].map(i => `
-                    <div style="display:grid; grid-template-columns:2fr 1fr; gap:8px; margin-bottom:8px;">
-                        <input name="menu_label_${i}" value="${s.menuOptions?.[i]?.label || ''}" placeholder="خيار ${i+1}">
-                        <input name="menu_emoji_${i}" value="${s.menuOptions?.[i]?.emoji || ''}" placeholder="ID الإيموجي">
+${[0,1,2,3].map(i => `
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
+                        <input name="menu_label_${i}" value="${s.menuOptions?.[i]?.label || ''}" placeholder="نص الخيار ${i+1}">
+                        <input name="menu_emoji_${i}" value="${s.menuOptions?.[i]?.emoji || ''}" placeholder="ايموجي">
+                        <select name="menu_role_${i}">
+                            <option value="">-- رتبة القسم --</option>
+                            ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.menuOptions?.[i]?.roleId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
+                        </select>
                     </div>`).join('')}
                 </div>
             </div>
 
-            <label style="margin-top:16px;">قناة الإرسال (اختياري)</label>
+            
+            
+            <label style="margin-top:16px;">قناة إرسال لوحة التذاكر</label>
             <select name="targetChannel">
-                <option value="">-- لا ترسل الآن --</option>
-                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}
+                <option value="">-- اختر القناة للإرسال --</option>
+                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${s.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
             </select>
-            <button class="btn-save" style="margin-top:20px;">حفظ وإرسال</button>
+            <button class="btn-save" style="margin-top:12px;">حفظ وإرسال اللوحة</button>
         </div>
     </form>`;
 
@@ -1688,33 +1693,45 @@ app.get('/manage/:guildId/tickets', checkAuth, async (req, res) => {
 app.post('/save/:guildId/tickets', checkAuth, upload.fields([{ name: 'topImage' }, { name: 'bottomImage' }]), async (req, res) => {
     try {
         const b = req.body;
-        const g = client.guilds.cache.get(req.params.guildId);
+        const guildId = req.params.guildId;
+        const g = client.guilds.cache.get(guildId);
         if (!g) return res.status(404).send('Guild not found');
 
         let buttons = [], menuOptions = [];
         for (let i = 0; i < 4; i++) {
             const btnLabel = b[`btn_label_${i}`]?.trim();
             const btnEmoji = b[`btn_emoji_${i}`]?.trim();
+            const btnRole = b[`btn_role_${i}`]?.trim();
             const menuLabel = b[`menu_label_${i}`]?.trim();
             const menuEmoji = b[`menu_emoji_${i}`]?.trim();
-            if (btnLabel) buttons.push({ label: btnLabel, emoji: btnEmoji || '' });
-            if (menuLabel) menuOptions.push({ label: menuLabel, emoji: menuEmoji || '' });
+            const menuRole = b[`menu_role_${i}`]?.trim();
+            if (btnLabel) buttons.push({ label: btnLabel, emoji: btnEmoji || '', roleId: btnRole || '' });
+            if (menuLabel) menuOptions.push({ label: menuLabel, emoji: menuEmoji || '', roleId: menuRole || '' });
         }
 
-        let updateData = { title: b.title, description: b.description, color: b.color || '#39FF14', adminRole: b.adminRole, buttons, menuOptions };
+        let updateData = { 
+            guildId,
+            channelId: b.targetChannel,
+            title: b.title, 
+            description: b.description, 
+            color: b.color || '#1e90ff', 
+            buttons, 
+            menuOptions 
+        };
+        
         if (req.files?.topImage?.[0]) updateData.topImagePath = req.files.topImage[0].path;
         if (req.files?.bottomImage?.[0]) updateData.bottomImagePath = req.files.bottomImage[0].path;
 
-        const config = await TicketConfig.findOneAndUpdate({ guildId: req.params.guildId }, { $set: updateData }, { upsert: true, new: true });
-
+        const config = await TicketConfig.findOneAndUpdate({ guildId }, { $set: updateData }, { upsert: true, new: true });
+        
         if (b.targetChannel) {
             const channel = g.channels.cache.get(b.targetChannel);
             if (channel) {
                 const files = [];
                 const embed = new EmbedBuilder()
                     .setTitle(config.title || 'نظام التذاكر')
-                    .setDescription(config.description || 'اضغط للفتح')
-                    .setColor(parseInt((config.color || '#39FF14').replace('#', ''), 16));
+                    .setDescription(config.description || 'اضغط لفتح تذكرة')
+                    .setColor(parseInt((config.color || '#1e90ff').replace('#', ''), 16));
 
                 if (config.topImagePath && fs.existsSync(config.topImagePath)) {
                     const topName = path.basename(config.topImagePath);
@@ -1727,46 +1744,37 @@ app.post('/save/:guildId/tickets', checkAuth, upload.fields([{ name: 'topImage' 
                     embed.setImage(`attachment://${bottomName}`);
                 }
 
-                const components = [];
+                const rows = [];
                 if (config.buttons?.length > 0) {
                     const btnRow = new ActionRowBuilder();
                     config.buttons.forEach((btn, i) => {
                         const button = new ButtonBuilder().setCustomId(`ticket_btn_${i}`).setLabel(btn.label).setStyle(ButtonStyle.Primary);
-                        if (btn.emoji && btn.emoji.trim() !== '') {
-                            const em = btn.emoji.trim();
+                        if (btn.emoji) {
                             try {
-                                if (/^\d+$/.test(em)) button.setEmoji({ id: em });
-                                else if (/^<a?:\w+:\d+>$/.test(em)) button.setEmoji(em);
+                                if (/^\d+$/.test(btn.emoji)) button.setEmoji({ id: btn.emoji });
+                                else button.setEmoji(btn.emoji);
                             } catch (e) {}
                         }
                         btnRow.addComponents(button);
                     });
-                    if (btnRow.components.length > 0) components.push(btnRow);
+                    rows.push(btnRow);
                 }
+                
                 if (config.menuOptions?.length > 0) {
-                    const select = new StringSelectMenuBuilder().setCustomId('ticket_menu').setPlaceholder('اختر من القائمة...');
+                    const menu = new StringSelectMenuBuilder().setCustomId('ticket_menu').setPlaceholder('اختر نوع التذكرة');
                     config.menuOptions.forEach((opt, i) => {
-                        const option = { label: opt.label, value: `ticket_opt_${i}` };
-                        if (opt.emoji && opt.emoji.trim() !== '') {
-                            const em = opt.emoji.trim();
-                            try { option.emoji = /^\d+$/.test(em) ? { id: em } : em; } catch (e) {}
-                        }
-                        select.addOptions(option);
+                        menu.addOptions({ label: opt.label, value: `ticket_opt_${i}`, emoji: opt.emoji || undefined });
                     });
-                    components.push(new ActionRowBuilder().addComponents(select));
+                    rows.push(new ActionRowBuilder().addComponents(menu));
                 }
-                if (components.length === 0) {
-                    components.push(new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId('open_ticket').setLabel('فتح تذكرة').setStyle(ButtonStyle.Primary)
-                    ));
-                }
-                await channel.send({ embeds: [embed], components, files }).catch(e => console.error('[Ticket Send Error]', e));
+
+                await channel.send({ embeds: [embed], components: rows, files }).catch(e => console.error('[Send Ticket Panel Error]', e));
             }
         }
-        res.redirect(`/manage/${req.params.guildId}/tickets`);
-    } catch (error) {
-        console.error('[Ticket Save Error]', error);
-        res.status(500).send('Internal Error');
+        res.redirect(`/manage/${guildId}/tickets`);
+    } catch (err) {
+        console.error('[Ticket Save Error]', err);
+        res.status(500).send('Error saving ticket config');
     }
 });
 
@@ -1883,7 +1891,7 @@ app.post('/save/:guildId/roles', checkAuth, async (req, res) => {
             if (row.components.length > 0) rows.push(row);
             
             await channel.send({ 
-                embeds: [new EmbedBuilder().setTitle('لوحة الرتب الذاتية').setDescription('اضغط على الزر للحصول على الرتبة أو إزالتها').setColor(0x39FF14)],
+                embeds: [new EmbedBuilder().setTitle('لوحة الرتب الذاتية').setDescription('اضغط على الزر للحصول على الرتبة أو إزالتها').setColor(0x1e90ff)],
                 components: rows 
             }).catch(() => {});
         }
@@ -1996,22 +2004,9 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                     await msg.channel.permissionOverwrites.edit(msg.guild.roles.everyone, { SendMessages: null });
                     resultMsg = await msg.channel.send('🔓 تم فتح الشات بنجاح.');
                 } else if (actionKey === 'timeout' && target) {
-                    let duration = 60 * 60 * 1000; // Default 1 hour
-                    const timeArg = args[2];
-                    if (timeArg) {
-                        const val = parseInt(timeArg);
-                        if (!isNaN(val)) {
-                            const unitMatch = timeArg.match(/[a-zA-Z]+/);
-                            const unit = unitMatch ? unitMatch[0].toLowerCase() : 'm';
-                            if (unit === 'd') duration = val * 24 * 60 * 60 * 1000;
-                            else if (unit === 'w') duration = val * 7 * 24 * 60 * 60 * 1000;
-                            else if (unit === 'h') duration = val * 60 * 60 * 1000;
-                            else if (unit === 'm') duration = val * 60 * 1000;
-                            else duration = val * 60 * 1000;
-                        }
-                    }
-                    await target.timeout(duration).catch(() => {});
-                    resultMsg = await msg.channel.send(`⏳ تم إعطاء تايم أوت لـ ${target.user.username} بنجاح.`);
+                    const mins = parseInt(args[2]) || 60;
+                    await target.timeout(mins * 60 * 1000).catch(() => {});
+                    resultMsg = await msg.channel.send(`⏳ تم إعطاء تايم أوت لـ ${target.user.username} لمدة ${mins} دقيقة.`);
                 } else if (actionKey === 'untimeout' && target) {
                     await target.timeout(null).catch(() => {});
                     resultMsg = await msg.channel.send(`✅ تم فك التايم أوت عن ${target.user.username}.`);
@@ -2045,37 +2040,48 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                 const embed = new EmbedBuilder()
                     .setAuthor({ name: `اقتراح من ${msg.author.username}`, iconURL: authorAvatar })
                     .setDescription(content || '*بدون نص*')
-                    .setColor(0x39FF14)
-                    .setFooter({ text: 'Abood System - Suggestions' })
+                    .setColor(0x1e90ff)
+                    .setFooter({ text: 'Abood System  - Suggestions' })
                     .setTimestamp()
                     .addFields(
                         { name: getEmojiDisplay(msg.guild, sugCfg.emoji1), value: '0', inline: true },
                         { name: getEmojiDisplay(msg.guild, sugCfg.emoji2), value: '0', inline: true }
                     );
 
+                
                 const files = [];
+                const dashboardUrl = process.env.RENDER_EXTERNAL_URL || '';
                 if (attachmentImg) {
                     embed.setImage(attachmentImg.url);
                 } else if (sugCfg.imagePath && fs.existsSync(sugCfg.imagePath)) {
                     const imgName = path.basename(sugCfg.imagePath);
+                    if (dashboardUrl) {
+                        embed.setImage(`${dashboardUrl.replace(/\/$/, '')}/uploads/${imgName}`);
+                    } else {
+                        files.push(new AttachmentBuilder(sugCfg.imagePath, { name: imgName }));
+                        const dashboardUrl = process.env.RENDER_EXTERNAL_URL || '';
+                if (dashboardUrl) {
+                    embed.setImage(`${dashboardUrl.replace(/\/$/, '')}/uploads/${imgName}`);
+                } else {
                     files.push(new AttachmentBuilder(sugCfg.imagePath, { name: imgName }));
                     embed.setImage(`attachment://${imgName}`);
                 }
+                    }
+                }
 
-                const menu = new ActionRowBuilder().addComponents(
-                    new StringSelectMenuBuilder()
-                        .setCustomId('suggestion_menu')
-                        .setPlaceholder('إجراءات الإدارة على الاقتراح')
-                        .addOptions(
-                            { label: 'الرد على الاقتراح', value: 'reply', emoji: '💬' },
-                            { label: 'قبول الاقتراح', value: 'accept', emoji: '✅' },
-                            { label: 'حذف الاقتراح', value: 'delete', emoji: '🗑️' }
-                        )
-                );
+
+                const menu = new StringSelectMenuBuilder()
+                    .setCustomId('suggestion_menu')
+                    .setPlaceholder('إجراءات الإدارة على الاقتراح')
+                    .addOptions(
+                        { label: 'الرد على الاقتراح', value: 'reply', emoji: '💬' },
+                        { label: 'قبول الاقتراح', value: 'accept', emoji: '✅' },
+                        { label: 'حذف الاقتراح', value: 'delete', emoji: '🗑️' }
+                    );
 
                 const sentMsg = await msg.channel.send({
                     embeds: [embed],
-                    components: [menu],
+                    components: [new ActionRowBuilder().addComponents(menu)],
                     files
                 });
 
@@ -2087,8 +2093,10 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                     content: content || ''
                 });
 
-                if (sugCfg.emoji1) await sentMsg.react(sugCfg.emoji1).catch(() => {});
-                if (sugCfg.emoji2) await sentMsg.react(sugCfg.emoji2).catch(() => {});
+                const emojiObj1 = msg.guild.emojis.cache.get(sugCfg.emoji1);
+                const emojiObj2 = msg.guild.emojis.cache.get(sugCfg.emoji2);
+                if (sugCfg.emoji1) await sentMsg.react(emojiObj1 || sugCfg.emoji1).catch(() => {});
+                if (sugCfg.emoji2) await sentMsg.react(emojiObj2 || sugCfg.emoji2).catch(() => {});
             }
             return;
         }
@@ -2107,7 +2115,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
 
             const embed = new EmbedBuilder()
                 .setTitle(`اعلى 15 ليفل في السيرفر`)
-                .setColor(0x39FF14)
+                .setColor(0x1e90ff)
                 .setThumbnail(msg.guild.iconURL({ dynamic: true }))
                 .setTimestamp();
 
@@ -2226,7 +2234,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
         const embed = new EmbedBuilder()
             .setTitle(tConfig.title || 'الدعم الفني')
             .setDescription(tConfig.description || 'اضغط أدناه لفتح تذكرة')
-            .setColor(parseInt((tConfig.color || '#39FF14').replace('#', ''), 16));
+            .setColor(parseInt((tConfig.color || '#1e90ff').replace('#', ''), 16));
 
         const files = [];
         if (tConfig.topImagePath && fs.existsSync(tConfig.topImagePath)) {
@@ -2292,14 +2300,14 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
         ctx.fillStyle = bgGradient;
         ctx.fillRect(0, 0, 850, 500);
 
-        ctx.strokeStyle = '#39FF14';
+        ctx.strokeStyle = '#1e90ff';
         ctx.lineWidth = 3;
         ctx.strokeRect(8, 8, 834, 484);
 
         ctx.save();
         ctx.beginPath();
         ctx.arc(150, 150, 90, 0, Math.PI * 2);
-        ctx.strokeStyle = '#39FF14';
+        ctx.strokeStyle = '#1e90ff';
         ctx.lineWidth = 5;
         ctx.stroke();
         ctx.clip();
@@ -2313,7 +2321,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
         ctx.fillText(target.username, 270, 130);
 
         ctx.font = '28px Arial';
-        ctx.fillStyle = '#39FF14';
+        ctx.fillStyle = '#1e90ff';
         ctx.fillText(`XP: ${uData.xp || 0}`, 270, 175);
 
         function drawStatBox(x, y, label, value) {
@@ -2325,7 +2333,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
             ctx.lineWidth = 1;
             ctx.stroke();
             ctx.textAlign = 'center';
-            ctx.fillStyle = '#39FF14';
+            ctx.fillStyle = '#1e90ff';
             ctx.font = 'bold 20px Arial';
             ctx.fillText(label, x + 120, y + 48);
             ctx.fillStyle = '#ffffff';
@@ -2470,7 +2478,7 @@ async function updateSuggestionVotes(reaction, user, isAdd) {
             { name: getEmojiDisplay(message.guild, sugCfg.emoji1), value: `${suggestion.votes1.length}`, inline: true },
             { name: getEmojiDisplay(message.guild, sugCfg.emoji2), value: `${suggestion.votes2.length}`, inline: true }
         );
-        await message.edit({ embeds: [embed] }).catch(() => {});
+        await message.edit({ embeds: [embed], attachments: [] }).catch(() => {});
     } catch (err) {
         console.error('[Suggestion Vote Error]', err);
     }
@@ -2553,7 +2561,7 @@ client.on('guildMemberAdd', async (member) => {
         const welcomeEmbed = new EmbedBuilder()
             .setTitle('عضو جديد انضم إلينا')
             .setDescription(welcomeMsg)
-            .setColor(0x39FF14)
+            .setColor(0x1e90ff)
             .setTimestamp()
             .setFooter({ text: `Abood System  - العضو رقم ${member.guild.memberCount}`, iconURL: member.guild.iconURL() });
 
@@ -2582,7 +2590,7 @@ const background = await loadImage(bgUrl ).catch(() => loadImage('https://placeh
             if (avatar) ctx.drawImage(avatar, x - (avW / 2), y - (avH / 2), avW, avH);
             ctx.restore();
 
-            ctx.strokeStyle = '#39FF14';
+            ctx.strokeStyle = '#1e90ff';
             ctx.lineWidth = 5;
             ctx.beginPath();
             ctx.ellipse(x, y, avW / 2, avH / 2, 0, 0, Math.PI * 2);
@@ -2642,7 +2650,7 @@ client.on('channelCreate', async (channel) => {
     if (!channel.guild) return;
     const embed = new EmbedBuilder()
         .setTitle('قناة جديدة')
-        .setColor(0x39FF14)
+        .setColor(0x1e90ff)
         .addFields({ name: 'القناة', value: `${channel.name} (<#${channel.id}>)` })
         .setTimestamp();
     await sendLog(channel.guild, 'channels', embed);
@@ -2726,7 +2734,7 @@ client.on('interactionCreate', async (interaction) => {
                 const embed = new EmbedBuilder()
                     .setTitle('لوحة تغيير الاسم')
                     .setDescription(`اضغط على الزر لتغيير اسمك إلى: **${name}**`)
-                    .setColor(0x39FF14);
+                    .setColor(0x1e90ff);
                 if (image) embed.setImage(image.url);
 
                 const row = new ActionRowBuilder().addComponents(
@@ -2885,7 +2893,7 @@ client.on('interactionCreate', async (interaction) => {
                 const embed = new EmbedBuilder()
                     .setTitle(title)
                     .setDescription(text)
-                    .setColor(0x39FF14)
+                    .setColor(0x1e90ff)
                     .setFooter({ text: `Abood System  - إعلان رسمي بواسطة ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL() })
                     .setTimestamp();
                 if (image) embed.setImage(image.url);
@@ -2909,7 +2917,7 @@ client.on('interactionCreate', async (interaction) => {
                 const embed = new EmbedBuilder()
                     .setTitle(`معلومات ${target.username}`)
                     .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-                    .setColor(0x39FF14)
+                    .setColor(0x1e90ff)
                     .addFields(
                         { name: 'الاسم الكامل', value: target.tag, inline: true },
                         { name: 'ID', value: target.id, inline: true },
@@ -2929,7 +2937,7 @@ client.on('interactionCreate', async (interaction) => {
                 const embed = new EmbedBuilder()
                     .setTitle(g.name)
                     .setThumbnail(g.iconURL({ dynamic: true }))
-                    .setColor(0x39FF14)
+                    .setColor(0x1e90ff)
                     .addFields(
                         { name: 'المالك', value: `<@${g.ownerId}>`, inline: true },
                         { name: 'عدد الأعضاء', value: `${g.memberCount}`, inline: true },
@@ -2947,7 +2955,7 @@ client.on('interactionCreate', async (interaction) => {
                 const embed = new EmbedBuilder()
                     .setTitle(`صورة ${target.username}`)
                     .setImage(target.displayAvatarURL({ dynamic: true, size: 1024 }))
-                    .setColor(0x39FF14);
+                    .setColor(0x1e90ff);
                 return interaction.reply({ embeds: [embed] });
             }
         }
@@ -2999,47 +3007,47 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         // --- [ Ticket Control Menu ] ---
-        if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_control_menu') {
+                if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_control_menu') {
             const selected = interaction.values[0];
-            const ticketData = await TicketData.findOne({ channelId: interaction.channelId });
-            if (!ticketData) return interaction.reply({ content: 'لم يتم العثور على بيانات التكت.', ephemeral: true });
+            
+            // For modals, we can't defer. For others, we should.
+            if (selected === 'claim_ticket' || selected === 'close_ticket' || selected === 'summon_member') {
+                await interaction.deferReply({ ephemeral: true }).catch(() => {});
+            }
 
-            const tConfig = await TicketConfig.findOne({ guildId: interaction.guild.id });
-            const adminRole = tConfig?.adminRole;
-            const isAdmin = adminRole && interaction.member.roles.cache.has(adminRole);
-            const isOwner = ticketData.ownerId === interaction.user.id;
+            const ticketData = await TicketData.findOne({ channelId: interaction.channelId });
+            if (!ticketData) {
+                const msg = 'لم يتم العثور على بيانات التكت.';
+                if (interaction.deferred) return interaction.editReply(msg);
+                return interaction.reply({ content: msg, ephemeral: true });
+            }
+
+            const adminRoleId = ticketData.adminRoleId;
+            const isAdmin = adminRoleId ? interaction.member.roles.cache.has(adminRoleId) : interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+            
+            if (!isAdmin) {
+                const msg = 'هذه القائمة مخصصة لرتبة الإدارة المسؤولة عن هذا القسم فقط.';
+                if (interaction.deferred) return interaction.editReply(msg);
+                return interaction.reply({ content: msg, ephemeral: true });
+            }
 
             if (selected === 'claim_ticket') {
-                if (ticketData.claimedBy) return interaction.reply({ content: `هذه التذكرة مستلمة بالفعل بواسطة <@${ticketData.claimedBy}>`, ephemeral: true });
-                
-                const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator) || (ticketData.adminRoleId && interaction.member.roles.cache.has(ticketData.adminRoleId));
-                if (!isAdmin) return interaction.reply({ content: 'فقط الإدارة المسؤولة يمكنهم استلام التكت.', ephemeral: true });
-                
                 ticketData.claimedBy = interaction.user.id;
                 await ticketData.save();
-
-                // LOCK: Only Claimer and Owner can talk. Others (even other admins) locked out.
-                await interaction.channel.permissionOverwrites.set([
-                    { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-                    { id: ticketData.ownerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-                    { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] }
-                ]);
-
-                return interaction.reply({ content: `تم استلام التكت بواسطة ${interaction.user}. تم فتح المحادثة لك ولصاحب التذكرة فقط.`, ephemeral: false });
+                await interaction.editReply(`تم استلام التكت بواسطة ${interaction.user}.`);
+                return interaction.channel.send(`✅ تم استلام التكت بواسطة ${interaction.user}.`);
             }
 
             if (selected === 'close_ticket') {
-                if (!isAdmin && !isOwner) return interaction.reply({ content: 'ليس لديك صلاحية لإغلاق التكت.', ephemeral: true });
                 ticketData.closedAt = new Date();
                 ticketData.closedBy = interaction.user.id;
                 await ticketData.save();
-                await interaction.reply({ content: 'سيتم حذف التكت خلال 5 ثوان...', ephemeral: false });
+                await interaction.editReply('سيتم حذف التكت خلال 5 ثوان...');
                 setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
                 return;
             }
 
             if (selected === 'add_member') {
-                if (!isAdmin) return interaction.reply({ content: 'فقط الإدارة يمكنهم إضافة أعضاء.', ephemeral: true });
                 const modal = new ModalBuilder().setCustomId('ticket_add_member').setTitle('إضافة عضو للتكت');
                 modal.addComponents(new ActionRowBuilder().addComponents(
                     new TextInputBuilder().setCustomId('member_id').setLabel('ID العضو').setStyle(TextInputStyle.Short).setRequired(true)
@@ -3048,7 +3056,6 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             if (selected === 'remove_member') {
-                if (!isAdmin) return interaction.reply({ content: 'فقط الإدارة يمكنهم إزالة أعضاء.', ephemeral: true });
                 const modal = new ModalBuilder().setCustomId('ticket_remove_member').setTitle('إزالة عضو من التكت');
                 modal.addComponents(new ActionRowBuilder().addComponents(
                     new TextInputBuilder().setCustomId('member_id').setLabel('ID العضو').setStyle(TextInputStyle.Short).setRequired(true)
@@ -3057,9 +3064,8 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             if (selected === 'summon_member') {
-                if (!isAdmin) return interaction.reply({ content: 'فقط الإدارة يمكنهم استدعاء الأعضاء.', ephemeral: true });
-                await interaction.reply({ content: `<@${ticketData.ownerId}> تم استدعاؤك!`, ephemeral: false });
-                return;
+                await interaction.editReply('تم الاستدعاء.');
+                return interaction.channel.send(`<@${ticketData.ownerId}> تم استدعاؤك!`);
             }
         }
 
@@ -3090,7 +3096,7 @@ if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_menu') 
         ticketType = tConfig.menuOptions[optIndex].label;
     }
 
-    const roleId = tConfig.menuOptions?.[optIndex]?.roleId; await openTicket(interaction, tConfig, ticketType, roleId);
+    await openTicket(interaction, tConfig, ticketType);
     return;
 }
 
@@ -3100,15 +3106,11 @@ if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_menu') 
             if (!tConfig) return interaction.reply({ content: 'لم يتم العثور على إعدادات التذاكر.', ephemeral: true });
 
             let ticketType = 'تذكرة دعم';
-            let roleId = null;
             if (interaction.customId.startsWith('ticket_btn_')) {
                 const btnIndex = parseInt(interaction.customId.replace('ticket_btn_', ''));
-                if (tConfig.buttons?.[btnIndex]) {
-                    ticketType = tConfig.buttons[btnIndex].label;
-                    roleId = tConfig.buttons[btnIndex].roleId;
-                }
+                if (tConfig.buttons?.[btnIndex]) ticketType = tConfig.buttons[btnIndex].label;
             }
-            await openTicket(interaction, tConfig, ticketType, roleId);
+            await openTicket(interaction, tConfig, ticketType);
         }
         // --- [ Suggestion Menu ] ---
         if (interaction.isStringSelectMenu() && interaction.customId === 'suggestion_menu') {
@@ -3189,7 +3191,7 @@ if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_menu') 
             const replyEmbed = new EmbedBuilder()
                 .setAuthor({ name: `رد الإدارة - ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL() })
                 .setDescription(replyText)
-                .setColor(0x39FF14)
+                .setColor(0x1e90ff)
                 .setTimestamp();
             await thread.send({ embeds: [replyEmbed] });
 
@@ -3218,7 +3220,7 @@ if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_menu') 
 // 13. Helper Functions
 // ==========================================
 
-async function openTicket(interaction, tConfig, ticketType, sectionRoleId = null) {
+async function openTicket(interaction, tConfig, ticketType) {
     try {
         const existingTicket = await TicketData.findOne({ guildId: interaction.guild.id, ownerId: interaction.user.id, closedAt: null });
         if (existingTicket) {
@@ -3228,15 +3230,22 @@ async function openTicket(interaction, tConfig, ticketType, sectionRoleId = null
         const ticketCount = await TicketData.countDocuments({ guildId: interaction.guild.id }) + 1;
         const channelName = `ticket-${ticketCount}-${interaction.user.username}`.substring(0, 100);
 
-        // Permissions: Only View, No Talking until Claimed
+        let adminRoleId = null; 
+        if (interaction.customId.startsWith('ticket_btn_')) {
+            const idx = parseInt(interaction.customId.replace('ticket_btn_', ''));
+            if (tConfig.buttons?.[idx]?.roleId) adminRoleId = tConfig.buttons[idx].roleId;
+        } else if (interaction.customId === 'ticket_menu') {
+            const selected = interaction.values[0];
+            const idx = parseInt(selected.replace('ticket_opt_', ''));
+            if (tConfig.menuOptions?.[idx]?.roleId) adminRoleId = tConfig.menuOptions[idx].roleId;
+        }
+
         const permOverwrites = [
             { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-            { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] }
+            { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
         ];
-        if (sectionRoleId) {
-            permOverwrites.push({ id: sectionRoleId, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
-        } else if (tConfig.adminRole) {
-            permOverwrites.push({ id: tConfig.adminRole, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
+        if (adminRoleId) {
+            permOverwrites.push({ id: adminRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] });
         }
 
         const ticketChannel = await interaction.guild.channels.create({
@@ -3252,22 +3261,22 @@ async function openTicket(interaction, tConfig, ticketType, sectionRoleId = null
             channelId: ticketChannel.id,
             ownerId: interaction.user.id,
             ticketType,
-            adminRoleId: sectionRoleId || tConfig.adminRole,
+            adminRoleId: adminRoleId,
             openedAt: new Date()
         });
 
         const files = [];
         const embed = new EmbedBuilder()
             .setTitle(`تكت ${ticketType} | #${ticketCount}`)
-            .setDescription(`مرحباً ${interaction.user}!\n\nالإدارة ستتواصل معك قريباً. يرجى شرح مشكلتك بالتفصيل.\n\n**ملاحظة:** لن تتمكن من الكتابة حتى يقوم أحد الإداريين باستلام التذكرة.`)
-            .setColor(0x39FF14)
+            .setDescription(`مرحباً ${interaction.user}!\n\nالإدارة ستتواصل معك قريباً. يرجى شرح مشكلتك بالتفصيل.`)
+            .setColor(0x1e90ff)
             .addFields(
                 { name: 'صاحب التكت', value: `${interaction.user}`, inline: true },
                 { name: 'النوع', value: ticketType, inline: true }
             )
             .setThumbnail(interaction.user.displayAvatarURL())
             .setTimestamp()
-            .setFooter({ text: 'Abood System - Tickets' });
+            .setFooter({ text: 'Abood System  - Tickets' });
 
         if (tConfig.topImagePath && fs.existsSync(tConfig.topImagePath)) {
             const topName = path.basename(tConfig.topImagePath);
@@ -3292,7 +3301,7 @@ async function openTicket(interaction, tConfig, ticketType, sectionRoleId = null
             ]);
 
         await ticketChannel.send({
-            content: `${interaction.user} ${sectionRoleId ? `<@&${sectionRoleId}>` : (tConfig.adminRole ? `<@&${tConfig.adminRole}>` : '')}`,
+            content: `${interaction.user} ${ticketDoc.adminRoleId ? `<@&${ticketDoc.adminRoleId}>` : ''}`,
             embeds: [embed],
             components: [new ActionRowBuilder().addComponents(controlMenu)],
             files
@@ -3304,6 +3313,10 @@ async function openTicket(interaction, tConfig, ticketType, sectionRoleId = null
         return interaction.reply({ content: 'حدث خطأ عند فتح التكت.', ephemeral: true });
     }
 }
+
+// ==========================================
+// 14. Kick Live Checker
+// ==========================================
 
 async function checkKickLive() {
     try {
