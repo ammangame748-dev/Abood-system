@@ -1996,8 +1996,23 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                     await msg.channel.permissionOverwrites.edit(msg.guild.roles.everyone, { SendMessages: null });
                     resultMsg = await msg.channel.send('🔓 تم فتح الشات بنجاح.');
                 } else if (actionKey === 'timeout' && target) {
-                    const mins = parseInt(args[2]) || 60;
-                    await target.timeout(mins * 60 * 1000).catch(() => {});
+                    let duration = 60 * 60 * 1000; // Default 1 hour
+                    const timeArg = args[2];
+                    if (timeArg) {
+                        const val = parseInt(timeArg);
+                        if (!isNaN(val)) {
+                            const unitMatch = timeArg.match(/[a-zA-Z]+/);
+                            const unit = unitMatch ? unitMatch[0].toLowerCase() : 'm';
+                            if (unit === 'd') duration = val * 24 * 60 * 60 * 1000;
+                            else if (unit === 'w') duration = val * 7 * 24 * 60 * 60 * 1000;
+                            else if (unit === 'h') duration = val * 60 * 60 * 1000;
+                            else if (unit === 'm') duration = val * 60 * 1000;
+                            else duration = val * 60 * 1000;
+                        }
+                    }
+                    await target.timeout(duration).catch(() => {});
+                    resultMsg = await msg.channel.send(`⏳ تم إعطاء تايم أوت لـ ${target.user.username} بنجاح.`);
+                });
                     resultMsg = await msg.channel.send(`⏳ تم إعطاء تايم أوت لـ ${target.user.username} لمدة ${mins} دقيقة.`);
                 } else if (actionKey === 'untimeout' && target) {
                     await target.timeout(null).catch(() => {});
@@ -2033,38 +2048,36 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                     .setAuthor({ name: `اقتراح من ${msg.author.username}`, iconURL: authorAvatar })
                     .setDescription(content || '*بدون نص*')
                     .setColor(0x39FF14)
-                    .setFooter({ text: 'Abood System  - Suggestions' })
+                    .setFooter({ text: 'Abood System - Suggestions' })
                     .setTimestamp()
                     .addFields(
                         { name: getEmojiDisplay(msg.guild, sugCfg.emoji1), value: '0', inline: true },
                         { name: getEmojiDisplay(msg.guild, sugCfg.emoji2), value: '0', inline: true }
                     );
 
-                
                 const files = [];
-                const dashboardUrl = process.env.RENDER_EXTERNAL_URL || '';
                 if (attachmentImg) {
                     embed.setImage(attachmentImg.url);
                 } else if (sugCfg.imagePath && fs.existsSync(sugCfg.imagePath)) {
                     const imgName = path.basename(sugCfg.imagePath);
                     files.push(new AttachmentBuilder(sugCfg.imagePath, { name: imgName }));
                     embed.setImage(`attachment://${imgName}`);
-                    }
                 }
 
-
-                const menu = new StringSelectMenuBuilder()
-                    .setCustomId('suggestion_menu')
-                    .setPlaceholder('إجراءات الإدارة على الاقتراح')
-                    .addOptions(
-                        { label: 'الرد على الاقتراح', value: 'reply', emoji: '💬' },
-                        { label: 'قبول الاقتراح', value: 'accept', emoji: '✅' },
-                        { label: 'حذف الاقتراح', value: 'delete', emoji: '🗑️' }
-                    );
+                const menu = new ActionRowBuilder().addComponents(
+                    new StringSelectMenuBuilder()
+                        .setCustomId('suggestion_menu')
+                        .setPlaceholder('إجراءات الإدارة على الاقتراح')
+                        .addOptions(
+                            { label: 'الرد على الاقتراح', value: 'reply', emoji: '💬' },
+                            { label: 'قبول الاقتراح', value: 'accept', emoji: '✅' },
+                            { label: 'حذف الاقتراح', value: 'delete', emoji: '🗑️' }
+                        )
+                );
 
                 const sentMsg = await msg.channel.send({
                     embeds: [embed],
-                    components: [new ActionRowBuilder().addComponents(menu)],
+                    components: [menu],
                     files
                 });
 
@@ -2076,19 +2089,14 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                     content: content || ''
                 });
 
-                const emojiObj1 = msg.guild.emojis.cache.get(sugCfg.emoji1);
-                const emojiObj2 = msg.guild.emojis.cache.get(sugCfg.emoji2);
-                if (sugCfg.emoji1) await sentMsg.react(emojiObj1 || sugCfg.emoji1).catch(() => {});
-                if (sugCfg.emoji2) await sentMsg.react(emojiObj2 || sugCfg.emoji2).catch(() => {});
+                if (sugCfg.emoji1) await sentMsg.react(sugCfg.emoji1).catch(() => {});
+                if (sugCfg.emoji2) await sentMsg.react(sugCfg.emoji2).catch(() => {});
             }
             return;
         }
     } catch (err) {
         console.error('[Suggestion Error]', err);
     }
-
-    const s = await GuildConfig.findOne({ guildId: msg.guild.id });
-    if (!s) return;
 
     // --- [ أمر قائمة المتصدرين ] ---
     if (s.levels?.enabled && s.levels.leaderboardCommand) {
@@ -3017,6 +3025,22 @@ client.on('interactionCreate', async (interaction) => {
                 ]);
 
                 return interaction.reply({ content: `تم استلام التكت بواسطة ${interaction.user}. تم فتح المحادثة لك ولصاحب التذكرة فقط.`, ephemeral: false });
+            }>`, ephemeral: true });
+                
+                const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator) || (ticketData.adminRoleId && interaction.member.roles.cache.has(ticketData.adminRoleId));
+                if (!isAdmin) return interaction.reply({ content: 'فقط الإدارة المسؤولة يمكنهم استلام التكت.', ephemeral: true });
+                
+                ticketData.claimedBy = interaction.user.id;
+                await ticketData.save();
+
+                // LOCK: Only Claimer and Owner can talk. Others (even other admins) locked out.
+                await interaction.channel.permissionOverwrites.set([
+                    { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+                    { id: ticketData.ownerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+                    { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] }
+                ]);
+
+                return interaction.reply({ content: `تم استلام التكت بواسطة ${interaction.user}. تم فتح المحادثة لك ولصاحب التذكرة فقط.`, ephemeral: false });
             }
 
             if (selected === 'close_ticket') {
@@ -3229,6 +3253,11 @@ async function openTicket(interaction, tConfig, ticketType, sectionRoleId = null
         } else if (tConfig.adminRole) {
             permOverwrites.push({ id: tConfig.adminRole, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
         }
+        if (sectionRoleId) {
+            permOverwrites.push({ id: sectionRoleId, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
+        } else if (tConfig.adminRole) {
+            permOverwrites.push({ id: tConfig.adminRole, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
+        }
 
         const ticketChannel = await interaction.guild.channels.create({
             name: channelName,
@@ -3308,8 +3337,13 @@ async function openTicket(interaction, tConfig, ticketType, sectionRoleId = null
 
         const permOverwrites = [
             { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-            { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
+            { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] }
         ];
+        if (sectionRoleId) {
+            permOverwrites.push({ id: sectionRoleId, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
+        } else if (tConfig.adminRole) {
+            permOverwrites.push({ id: tConfig.adminRole, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
+        }
         if (tConfig.adminRole) {
             permOverwrites.push({ id: tConfig.adminRole, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] });
         }
