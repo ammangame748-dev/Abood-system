@@ -55,6 +55,7 @@ const TicketData = mongoose.model('TicketData', new mongoose.Schema({
     channelId: String,
     ownerId: String,
     ticketType: { type: String, default: 'تذكرة دعم' },
+    adminRoleId: String,
     claimedBy: String,
     openedAt: Date,
     closedAt: Date,
@@ -205,8 +206,8 @@ const TicketConfig = mongoose.model('TicketConfig', new mongoose.Schema({
     topImagePath: String,
     bottomImagePath: String,
     ticketCount: { type: Number, default: 0 },
-    buttons: [{ label: String, emoji: String }],
-    menuOptions: [{ label: String, emoji: String }]
+    buttons: [{ label: String, emoji: String, roleId: String }],
+    menuOptions: [{ label: String, emoji: String, roleId: String }]
 }));
 
 // ==========================================
@@ -1673,164 +1674,76 @@ app.get('/manage/:guildId/tickets', checkAuth, async (req, res) => {
                 <div>
                     <div style="color:var(--blue); font-size:13px; font-weight:700; margin-bottom:10px;">الازرار (حتى 4)</div>
                     ${[0,1,2,3].map(i => `
-                    <div style="display:grid; grid-template-columns:2fr 1fr; gap:8px; margin-bottom:8px;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
                         <input name="btn_label_${i}" value="${s.buttons?.[i]?.label || ''}" placeholder="نص الزر ${i+1}">
-                        <input name="btn_emoji_${i}" value="${s.buttons?.[i]?.emoji || ''}" placeholder="ID الإيموجي">
+                        <input name="btn_emoji_${i}" value="${s.buttons?.[i]?.emoji || ''}" placeholder="ايموجي">
+                        <select name="btn_role_${i}">
+                            <option value="">-- رتبة القسم --</option>
+                            ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.buttons?.[i]?.roleId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
+                        </select>
                     </div>`).join('')}
                 </div>
                 <div>
                     <div style="color:var(--blue); font-size:13px; font-weight:700; margin-bottom:10px;">خيارات المنيو (حتى 4)</div>
                     ${[0,1,2,3].map(i => `
-                    <div style="display:grid; grid-template-columns:2fr 1fr; gap:8px; margin-bottom:8px;">
-                        <input name="menu_label_${i}" value="${s.menuOptions?.[i]?.label || ''}" placeholder="خيار ${i+1}">
-                        <input name="menu_emoji_${i}" value="${s.menuOptions?.[i]?.emoji || ''}" placeholder="ID الإيموجي">
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
+                        <input name="menu_label_${i}" value="${s.menuOptions?.[i]?.label || ''}" placeholder="نص الخيار ${i+1}">
+                        <input name="menu_emoji_${i}" value="${s.menuOptions?.[i]?.emoji || ''}" placeholder="ايموجي">
+                        <select name="menu_role_${i}">
+                            <option value="">-- رتبة القسم --</option>
+                            ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.menuOptions?.[i]?.roleId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
+                        </select>
                     </div>`).join('')}
-                </div>
             </div>
+            </div>
+            <button class="btn-save" style="margin-top:12px;">حفظ اللوحة</button>
+        </form>
+    </div>`;
 
-            <label style="margin-top:16px;">قناة الإرسال (اختياري)</label>
-            <select name="targetChannel">
-                <option value="">-- لا ترسل الآن --</option>
-                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}
-            </select>
-            <button class="btn-save" style="margin-top:20px;">حفظ وإرسال</button>
-        </div>
-    </form>`;
-
-    res.send(ui(g, 'tickets', content));
+        res.send(ui(g, 'tickets', content));
 });
 
 app.post('/save/:guildId/tickets', checkAuth, upload.fields([{ name: 'topImage' }, { name: 'bottomImage' }]), async (req, res) => {
     try {
         const b = req.body;
-        const g = client.guilds.cache.get(req.params.guildId);
+        const guildId = req.params.guildId;
+        const g = client.guilds.cache.get(guildId);
         if (!g) return res.status(404).send('Guild not found');
 
         let buttons = [], menuOptions = [];
         for (let i = 0; i < 4; i++) {
             const btnLabel = b[`btn_label_${i}`]?.trim();
             const btnEmoji = b[`btn_emoji_${i}`]?.trim();
+            const btnRole = b[`btn_role_${i}`]?.trim();
             const menuLabel = b[`menu_label_${i}`]?.trim();
             const menuEmoji = b[`menu_emoji_${i}`]?.trim();
-            if (btnLabel) buttons.push({ label: btnLabel, emoji: btnEmoji || '' });
-            if (menuLabel) menuOptions.push({ label: menuLabel, emoji: menuEmoji || '' });
+            const menuRole = b[`menu_role_${i}`]?.trim();
+            if (btnLabel) buttons.push({ label: btnLabel, emoji: btnEmoji || '', roleId: btnRole || '' });
+            if (menuLabel) menuOptions.push({ label: menuLabel, emoji: menuEmoji || '', roleId: menuRole || '' });
         }
 
-        let updateData = { title: b.title, description: b.description, color: b.color || '#1e90ff', adminRole: b.adminRole, buttons, menuOptions };
+        let updateData = { 
+            title: b.title, 
+            description: b.description, 
+            color: b.color || '#1e90ff', 
+            adminRole: b.adminRole, 
+            buttons, 
+            menuOptions 
+        };
+        
         if (req.files?.topImage?.[0]) updateData.topImagePath = req.files.topImage[0].path;
         if (req.files?.bottomImage?.[0]) updateData.bottomImagePath = req.files.bottomImage[0].path;
 
-        const config = await TicketConfig.findOneAndUpdate({ guildId: req.params.guildId }, { $set: updateData }, { upsert: true, new: true });
-
-        if (b.targetChannel) {
-            const channel = g.channels.cache.get(b.targetChannel);
-            if (channel) {
-                const files = [];
-                const embed = new EmbedBuilder()
-                    .setTitle(config.title || 'نظام التذاكر')
-                    .setDescription(config.description || 'اضغط للفتح')
-                    .setColor(parseInt((config.color || '#1e90ff').replace('#', ''), 16));
-
-                if (config.topImagePath && fs.existsSync(config.topImagePath)) {
-                    const topName = path.basename(config.topImagePath);
-                    files.push(new AttachmentBuilder(config.topImagePath, { name: topName }));
-                    embed.setThumbnail(`attachment://${topName}`);
-                }
-                if (config.bottomImagePath && fs.existsSync(config.bottomImagePath)) {
-                    const bottomName = path.basename(config.bottomImagePath);
-                    files.push(new AttachmentBuilder(config.bottomImagePath, { name: bottomName }));
-                    embed.setImage(`attachment://${bottomName}`);
-                }
-
-                const components = [];
-                if (config.buttons?.length > 0) {
-                    const btnRow = new ActionRowBuilder();
-                    config.buttons.forEach((btn, i) => {
-                        const button = new ButtonBuilder().setCustomId(`ticket_btn_${i}`).setLabel(btn.label).setStyle(ButtonStyle.Primary);
-                        if (btn.emoji && btn.emoji.trim() !== '') {
-                            const em = btn.emoji.trim();
-                            try {
-                                if (/^\d+$/.test(em)) button.setEmoji({ id: em });
-                                else if (/^<a?:\w+:\d+>$/.test(em)) button.setEmoji(em);
-                            } catch (e) {}
-                        }
-                        btnRow.addComponents(button);
-                    });
-                    if (btnRow.components.length > 0) components.push(btnRow);
-                }
-                if (config.menuOptions?.length > 0) {
-                    const select = new StringSelectMenuBuilder().setCustomId('ticket_menu').setPlaceholder('اختر من القائمة...');
-                    config.menuOptions.forEach((opt, i) => {
-                        const option = { label: opt.label, value: `ticket_opt_${i}` };
-                        if (opt.emoji && opt.emoji.trim() !== '') {
-                            const em = opt.emoji.trim();
-                            try { option.emoji = /^\d+$/.test(em) ? { id: em } : em; } catch (e) {}
-                        }
-                        select.addOptions(option);
-                    });
-                    components.push(new ActionRowBuilder().addComponents(select));
-                }
-                if (components.length === 0) {
-                    components.push(new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId('open_ticket').setLabel('فتح تذكرة').setStyle(ButtonStyle.Primary)
-                    ));
-                }
-                await channel.send({ embeds: [embed], components, files }).catch(e => console.error('[Ticket Send Error]', e));
-            }
-        }
-        res.redirect(`/manage/${req.params.guildId}/tickets`);
-    } catch (error) {
-        console.error('[Ticket Save Error]', error);
-        res.status(500).send('Internal Error');
+        await TicketConfig.findOneAndUpdate({ guildId }, { $set: updateData }, { upsert: true, new: true });
+        res.redirect(`/manage/${guildId}/tickets`);
+    } catch (err) {
+        console.error('[Ticket Save Error]', err);
+        res.status(500).send('Error saving ticket config');
     }
 });
 
-// --- [ Levels ] ---
-app.get('/manage/:guildId/levels', checkAuth, async (req, res) => {
-    const g = client.guilds.cache.get(req.params.guildId);
-    if (!g) return res.redirect('/dashboard');
-    let s = await GuildConfig.findOne({ guildId: g.id }) || { levels: {} };
 
-    const content = `
-    <form method="POST" action="/save/${g.id}/levels">
-        <div class="card">
-            <h3>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/></svg>
-                إعدادات المستويات
-            </h3>
-            <div class="toggle-row">
-                <label style="color:white; margin:0;">تفعيل نظام المستويات</label>
-                <input type="checkbox" name="enabled" ${s.levels?.enabled ? 'checked' : ''} style="width:20px; height:20px; accent-color:var(--blue); cursor:pointer;">
-            </div>
-            <label>XP لكل رسالة</label>
-            <input type="number" name="xpPerMessage" value="${s.levels?.xpPerMessage || 10}" min="1">
-            <label>قناة رسائل الترقية</label>
-            <select name="levelUpChannel">
-                <option value="">-- نفس القناة --</option>
-                ${g.channels.cache.filter(c => c.type === 0).map(c =>
-                    `<option value="${c.id}" ${s.levels?.levelUpChannel === c.id ? 'selected' : ''}># ${c.name}</option>`
-                ).join('')}
-            </select>
-            <label>أمر قائمة المتصدرين</label>
-            <input name="leaderboardCommand" value="${s.levels?.leaderboardCommand || '!levels'}" placeholder="!levels">
-            <button class="btn-save" style="margin-top:20px;">حفظ الإعدادات</button>
-        </div>
-    </form>`;
-
-    res.send(ui(g, 'levels', content));
-});
-
-app.post('/save/:guildId/levels', checkAuth, async (req, res) => {
-    const b = req.body;
-    await GuildConfig.findOneAndUpdate(
-        { guildId: req.params.guildId },
-        { $set: { levels: { enabled: b.enabled === 'on', xpPerMessage: Number(b.xpPerMessage) || 10, levelUpChannel: b.levelUpChannel, leaderboardCommand: b.leaderboardCommand || '!levels' } } },
-        { upsert: true }
-    );
-    res.redirect(`/manage/${req.params.guildId}/levels`);
-});
-
-// --- [ Roles Panel ] ---
+// --- [ Self Roles ] ---
 app.get('/manage/:guildId/roles', checkAuth, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
@@ -1869,6 +1782,7 @@ app.get('/manage/:guildId/roles', checkAuth, async (req, res) => {
 
     res.send(ui(g, 'roles', content));
 });
+
 app.post('/save/:guildId/roles', checkAuth, async (req, res) => {
     const b = req.body;
     const rolesPanel = [];
@@ -1884,7 +1798,6 @@ app.post('/save/:guildId/roles', checkAuth, async (req, res) => {
         { upsert: true, new: true }
     );
 
-    // إرسال اللوحة تلقائياً للروم
     const g = client.guilds.cache.get(req.params.guildId);
     if (g && b.rolesChannel && rolesPanel.length > 0) {
         const channel = g.channels.cache.get(b.rolesChannel);
@@ -1903,10 +1816,8 @@ app.post('/save/:guildId/roles', checkAuth, async (req, res) => {
             }).catch(() => {});
         }
     }
-
     res.redirect(`/manage/${req.params.guildId}/roles`);
 });
-
 
 // --- [ Mod / Jail Config ] ---
 app.get('/manage/:guildId/mod', checkAuth, async (req, res) => {
@@ -3007,18 +2918,19 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.reply({ content: 'تم ارجاع اسمك الأصلي', ephemeral: true });
         }
 
+        
         // --- [ Ticket Control Menu ] ---
         if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_control_menu') {
             const selected = interaction.values[0];
             const ticketData = await TicketData.findOne({ channelId: interaction.channelId });
             if (!ticketData) return interaction.reply({ content: 'لم يتم العثور على بيانات التكت.', ephemeral: true });
 
-            const tConfig = await TicketConfig.findOne({ guildId: interaction.guild.id });
-            const adminRole = tConfig?.adminRole;
-            const isAdmin = adminRole && interaction.member.roles.cache.has(adminRole);
+            const adminRoleId = ticketData.adminRoleId;
+            const isAdmin = adminRoleId ? interaction.member.roles.cache.has(adminRoleId) : interaction.member.permissions.has(PermissionFlagsBits.Administrator);
             
-            // تحقق عام: فقط الإدارة يمكنها استخدام هذه القائمة
-            if (!isAdmin) return interaction.reply({ content: 'هذه القائمة مخصصة لرتبة الإدارة فقط.', ephemeral: true });
+            // تحقق عام: فقط الإدارة المخصصة لهذا القسم يمكنها استخدام هذه القائمة
+            if (!isAdmin) return interaction.reply({ content: 'هذه القائمة مخصصة لرتبة الإدارة المسؤولة عن هذا القسم فقط.', ephemeral: true });
+
 
             if (selected === 'claim_ticket') {
                 ticketData.claimedBy = interaction.user.id;
@@ -3218,15 +3130,27 @@ async function openTicket(interaction, tConfig, ticketType) {
             return interaction.reply({ content: `لديك تكت مفتوح بالفعل: <#${existingTicket.channelId}>`, ephemeral: true });
         }
 
+        
         const ticketCount = await TicketData.countDocuments({ guildId: interaction.guild.id }) + 1;
         const channelName = `ticket-${ticketCount}-${interaction.user.username}`.substring(0, 100);
+
+        // تحديد رتبة القسم المخصصة
+        let adminRoleId = tConfig.adminRole; // الافتراضية
+        if (interaction.customId.startsWith('ticket_btn_')) {
+            const idx = parseInt(interaction.customId.replace('ticket_btn_', ''));
+            if (tConfig.buttons?.[idx]?.roleId) adminRoleId = tConfig.buttons[idx].roleId;
+        } else if (interaction.customId === 'ticket_menu') {
+            const selected = interaction.values[0];
+            const idx = parseInt(selected.replace('ticket_opt_', ''));
+            if (tConfig.menuOptions?.[idx]?.roleId) adminRoleId = tConfig.menuOptions[idx].roleId;
+        }
 
         const permOverwrites = [
             { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
             { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
         ];
-        if (tConfig.adminRole) {
-            permOverwrites.push({ id: tConfig.adminRole, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] });
+        if (adminRoleId) {
+            permOverwrites.push({ id: adminRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] });
         }
 
         const ticketChannel = await interaction.guild.channels.create({
@@ -3242,8 +3166,10 @@ async function openTicket(interaction, tConfig, ticketType) {
             channelId: ticketChannel.id,
             ownerId: interaction.user.id,
             ticketType,
+            adminRoleId: adminRoleId,
             openedAt: new Date()
         });
+
 
         const files = [];
         const embed = new EmbedBuilder()
@@ -3281,7 +3207,7 @@ async function openTicket(interaction, tConfig, ticketType) {
             ]);
 
         await ticketChannel.send({
-            content: `${interaction.user} ${tConfig.adminRole ? `<@&${tConfig.adminRole}>` : ''}`,
+            content: `${interaction.user} ${ticketDoc.adminRoleId ? `<@&${ticketDoc.adminRoleId}>` : ''}`,
             embeds: [embed],
             components: [new ActionRowBuilder().addComponents(controlMenu)],
             files
