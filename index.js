@@ -2012,8 +2012,6 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                     }
                     await target.timeout(duration).catch(() => {});
                     resultMsg = await msg.channel.send(`⏳ تم إعطاء تايم أوت لـ ${target.user.username} بنجاح.`);
-                });
-                    resultMsg = await msg.channel.send(`⏳ تم إعطاء تايم أوت لـ ${target.user.username} لمدة ${mins} دقيقة.`);
                 } else if (actionKey === 'untimeout' && target) {
                     await target.timeout(null).catch(() => {});
                     resultMsg = await msg.channel.send(`✅ تم فك التايم أوت عن ${target.user.username}.`);
@@ -2097,6 +2095,9 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
     } catch (err) {
         console.error('[Suggestion Error]', err);
     }
+
+    const s = await GuildConfig.findOne({ guildId: msg.guild.id });
+    if (!s) return;
 
     // --- [ أمر قائمة المتصدرين ] ---
     if (s.levels?.enabled && s.levels.leaderboardCommand) {
@@ -3025,22 +3026,6 @@ client.on('interactionCreate', async (interaction) => {
                 ]);
 
                 return interaction.reply({ content: `تم استلام التكت بواسطة ${interaction.user}. تم فتح المحادثة لك ولصاحب التذكرة فقط.`, ephemeral: false });
-            }>`, ephemeral: true });
-                
-                const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator) || (ticketData.adminRoleId && interaction.member.roles.cache.has(ticketData.adminRoleId));
-                if (!isAdmin) return interaction.reply({ content: 'فقط الإدارة المسؤولة يمكنهم استلام التكت.', ephemeral: true });
-                
-                ticketData.claimedBy = interaction.user.id;
-                await ticketData.save();
-
-                // LOCK: Only Claimer and Owner can talk. Others (even other admins) locked out.
-                await interaction.channel.permissionOverwrites.set([
-                    { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-                    { id: ticketData.ownerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-                    { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] }
-                ]);
-
-                return interaction.reply({ content: `تم استلام التكت بواسطة ${interaction.user}. تم فتح المحادثة لك ولصاحب التذكرة فقط.`, ephemeral: false });
             }
 
             if (selected === 'close_ticket') {
@@ -3253,11 +3238,6 @@ async function openTicket(interaction, tConfig, ticketType, sectionRoleId = null
         } else if (tConfig.adminRole) {
             permOverwrites.push({ id: tConfig.adminRole, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
         }
-        if (sectionRoleId) {
-            permOverwrites.push({ id: sectionRoleId, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
-        } else if (tConfig.adminRole) {
-            permOverwrites.push({ id: tConfig.adminRole, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
-        }
 
         const ticketChannel = await interaction.guild.channels.create({
             name: channelName,
@@ -3279,11 +3259,7 @@ async function openTicket(interaction, tConfig, ticketType, sectionRoleId = null
         const files = [];
         const embed = new EmbedBuilder()
             .setTitle(`تكت ${ticketType} | #${ticketCount}`)
-            .setDescription(`مرحباً ${interaction.user}!
-
-الإدارة ستتواصل معك قريباً. يرجى شرح مشكلتك بالتفصيل.
-
-**ملاحظة:** لن تتمكن من الكتابة حتى يقوم أحد الإداريين باستلام التذكرة.`)
+            .setDescription(`مرحباً ${interaction.user}!\n\nالإدارة ستتواصل معك قريباً. يرجى شرح مشكلتك بالتفصيل.\n\n**ملاحظة:** لن تتمكن من الكتابة حتى يقوم أحد الإداريين باستلام التذكرة.`)
             .setColor(0x39FF14)
             .addFields(
                 { name: 'صاحب التكت', value: `${interaction.user}`, inline: true },
@@ -3327,95 +3303,7 @@ async function openTicket(interaction, tConfig, ticketType, sectionRoleId = null
         console.error('[Ticket Error]', err);
         return interaction.reply({ content: 'حدث خطأ عند فتح التكت.', ephemeral: true });
     }
-});
-        if (existingTicket) {
-            return interaction.reply({ content: `لديك تكت مفتوح بالفعل: <#${existingTicket.channelId}>`, ephemeral: true });
-        }
-
-        const ticketCount = await TicketData.countDocuments({ guildId: interaction.guild.id }) + 1;
-        const channelName = `ticket-${ticketCount}-${interaction.user.username}`.substring(0, 100);
-
-        const permOverwrites = [
-            { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-            { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] }
-        ];
-        if (sectionRoleId) {
-            permOverwrites.push({ id: sectionRoleId, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
-        } else if (tConfig.adminRole) {
-            permOverwrites.push({ id: tConfig.adminRole, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] });
-        }
-        if (tConfig.adminRole) {
-            permOverwrites.push({ id: tConfig.adminRole, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] });
-        }
-
-        const ticketChannel = await interaction.guild.channels.create({
-            name: channelName,
-            type: ChannelType.GuildText,
-            permissionOverwrites: permOverwrites
-        }).catch(() => null);
-
-        if (!ticketChannel) return interaction.reply({ content: 'فشل إنشاء قناة التكت.', ephemeral: true });
-
-        const ticketDoc = await TicketData.create({
-            guildId: interaction.guild.id,
-            channelId: ticketChannel.id,
-            ownerId: interaction.user.id,
-            ticketType,
-            openedAt: new Date()
-        });
-
-        const files = [];
-        const embed = new EmbedBuilder()
-            .setTitle(`تكت ${ticketType} | #${ticketCount}`)
-            .setDescription(`مرحباً ${interaction.user}!\n\nالإدارة ستتواصل معك قريباً. يرجى شرح مشكلتك بالتفصيل.`)
-            .setColor(0x39FF14)
-            .addFields(
-                { name: 'صاحب التكت', value: `${interaction.user}`, inline: true },
-                { name: 'النوع', value: ticketType, inline: true }
-            )
-            .setThumbnail(interaction.user.displayAvatarURL())
-            .setTimestamp()
-            .setFooter({ text: 'Abood System  - Tickets' });
-
-        if (tConfig.topImagePath && fs.existsSync(tConfig.topImagePath)) {
-            const topName = path.basename(tConfig.topImagePath);
-            files.push(new AttachmentBuilder(tConfig.topImagePath, { name: topName }));
-            embed.setThumbnail(`attachment://${topName}`);
-        }
-        if (tConfig.bottomImagePath && fs.existsSync(tConfig.bottomImagePath)) {
-            const bottomName = path.basename(tConfig.bottomImagePath);
-            files.push(new AttachmentBuilder(tConfig.bottomImagePath, { name: bottomName }));
-            embed.setImage(`attachment://${bottomName}`);
-        }
-
-        const controlMenu = new StringSelectMenuBuilder()
-            .setCustomId('ticket_control_menu')
-            .setPlaceholder('لوحة التحكم بالتكت')
-            .addOptions([
-                { label: 'استلام التكت', value: 'claim_ticket', description: 'استلام التكت للمعالجة' },
-                { label: 'اغلاق التكت', value: 'close_ticket', description: 'اغلاق وحذف التكت' },
-                { label: 'اضافة شخص', value: 'add_member', description: 'اضافة شخص للتكت' },
-                { label: 'ازالة شخص', value: 'remove_member', description: 'ازالة شخص من التكت' },
-                { label: 'استدعاء صاحب التكت', value: 'summon_member', description: 'منشن صاحب التكت' }
-            ]);
-
-        await ticketChannel.send({
-            content: `${interaction.user} ${tConfig.adminRole ? `<@&${tConfig.adminRole}>` : ''}`,
-            embeds: [embed],
-            components: [new ActionRowBuilder().addComponents(controlMenu)],
-            files
-        }).catch(e => console.error('[Ticket Channel Send Error]', e));
-
-        return interaction.reply({ content: `تم فتح تكتك: ${ticketChannel}`, ephemeral: true });
-    } catch (err) {
-        console.error('[Ticket Error]', err);
-        return interaction.reply({ content: 'حدث خطأ عند فتح التكت.', ephemeral: true });
-    }
 }
-
-// ==========================================
-// 14. Kick Live Checker
-// ==========================================
 
 async function checkKickLive() {
     try {
