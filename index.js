@@ -470,7 +470,6 @@ app.get('/login', (req, res) => {
     </style>
 </head>
 <body>
-    <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('active')">☰</button>
     <div class="bg-particles"></div>
     <div class="grid-bg"></div>
     <div class="login-wrapper">
@@ -631,7 +630,7 @@ function ui(guild, active, content) {
         }
 
         /* ===== SIDEBAR ===== */
-        .sidebar {
+                .sidebar {
             width: var(--sidebar-w);
             background: rgba(7,7,15,0.95);
             border-left: 1px solid var(--border);
@@ -644,26 +643,8 @@ function ui(guild, active, content) {
             scrollbar-width: thin;
             scrollbar-color: var(--blue) transparent;
             height: 100vh;
-            transition: transform 0.3s ease;
         }
-        .main {
-            margin-right: var(--sidebar-w);
-            padding: 40px 50px;
-            flex: 1;
-            min-height: 100vh;
-            overflow-y: auto;
-        }
-        @media (max-width: 992px) {
-            .sidebar { transform: translateX(100%); width: 240px; }
-            .sidebar.active { transform: translateX(0); }
-            .main { margin-right: 0; padding: 20px; }
-            .mobile-toggle { display: block !important; }
-        }
-        .mobile-toggle {
-            display: none; position: fixed; top: 20px; right: 20px;
-            z-index: 1100; background: var(--blue); color: white;
-            border: none; padding: 10px; border-radius: 8px; cursor: pointer;
-        }
+        
         .sidebar::-webkit-scrollbar { width: 4px; }
         .sidebar::-webkit-scrollbar-thumb { background: var(--blue); border-radius: 10px; }
 
@@ -731,13 +712,7 @@ function ui(guild, active, content) {
         @keyframes pulseBar { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
         /* ===== MAIN CONTENT ===== */
-        .main {
-            margin-right: 0;
-            padding: 40px 50px;
-            flex: 1;
-            min-height: 100vh;
-            overflow-y: auto;
-        }
+        
 
         .page-header {
             display: flex; align-items: center; gap: 15px;
@@ -933,13 +908,12 @@ function ui(guild, active, content) {
 
         /* ===== RESPONSIVE ===== */
         @media (max-width: 768px) {
-            .sidebar { width: 240px; }
+            /* sidebar placeholder */ width: 240px; }
             .main { margin-right: 240px; padding: 20px; }
         }
     </style>
 </head>
 <body>
-    <button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('active')">☰</button>
     <div class="orb orb-1"></div>
     <div class="orb orb-2"></div>
     <div class="orb orb-3"></div>
