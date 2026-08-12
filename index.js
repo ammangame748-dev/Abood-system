@@ -202,7 +202,7 @@ const TicketConfig = mongoose.model('TicketConfig', new mongoose.Schema({
     title: String,
     description: String,
     color: String,
-    adminRole: String,
+    // adminRole: String,
     topImagePath: String,
     bottomImagePath: String,
     ticketCount: { type: Number, default: 0 },
@@ -502,56 +502,42 @@ function ui(guild, active, content) {
 
     const navItems = guild.id ? `
         <a class="${active === 'home' ? 'active' : ''}" href="/manage/${guild.id}/home">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
             الإحصائيات
         </a>
         <a class="${active === 'security' ? 'active' : ''}" href="/manage/${guild.id}/security">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             الحماية
         </a>
-        
         <a class="${active === 'kick' ? 'active' : ''}" href="/manage/${guild.id}/kick">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="var(--dark)"/></svg>
             تنبيهات Kick
         </a>
         <a class="${active === 'admincmds' ? 'active' : ''}" href="/manage/${guild.id}/admincmds">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
             الأوامر الإدارية
         </a>
         <a class="${active === 'suggestions' ? 'active' : ''}" href="/manage/${guild.id}/suggestions">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
             الاقتراحات
         </a>
         <a class="${active === 'logs' ? 'active' : ''}" href="/manage/${guild.id}/logs">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
             اللوق
         </a>
         <a class="${active === 'tickets' ? 'active' : ''}" href="/manage/${guild.id}/tickets">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z"/></svg>
             التذاكر
         </a>
         <a class="${active === 'autoreply' ? 'active' : ''}" href="/manage/${guild.id}/autoreply">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             الرد الآلي
         </a>
         <a class="${active === 'levels' ? 'active' : ''}" href="/manage/${guild.id}/levels">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>
             المستويات
         </a>
         <a class="${active === 'welcome' ? 'active' : ''}" href="/manage/${guild.id}/welcome">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             الترحيب
         </a>
         <a class="${active === 'giveaway' ? 'active' : ''}" href="/manage/${guild.id}/giveaway">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polyline points="20,12 20,22 4,22 4,12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
             القيف اواي
         </a>
         <a class="${active === 'roles' ? 'active' : ''}" href="/manage/${guild.id}/roles">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             الرتب
         </a>
         <a class="${active === 'mod' ? 'active' : ''}" href="/manage/${guild.id}/mod">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             أوامر الإشراف
         </a>
     ` : '';
@@ -712,7 +698,7 @@ function ui(guild, active, content) {
 
         /* ===== MAIN CONTENT ===== */
         .main {
-            margin-right: 0;
+            margin-right: var(--sidebar-w);
             padding: 40px 50px;
             flex: 1;
             min-height: 100vh;
@@ -1714,7 +1700,7 @@ app.post('/save/:guildId/tickets', checkAuth, upload.fields([{ name: 'topImage' 
             channelId: b.targetChannel,
             title: b.title, 
             description: b.description, 
-            color: b.color || '#1e90ff', 
+            color: b.color || '#39FF14', 
             buttons, 
             menuOptions 
         };
@@ -1727,6 +1713,15 @@ app.post('/save/:guildId/tickets', checkAuth, upload.fields([{ name: 'topImage' 
         if (b.targetChannel) {
             const channel = g.channels.cache.get(b.targetChannel);
             if (channel) {
+                // Delete old panels to ensure only one exists
+                try {
+                    const messages = await channel.messages.fetch({ limit: 50 });
+                    const oldPanels = messages.filter(m => m.author.id === client.user.id && m.embeds.length > 0 && (m.embeds[0].title === config.title || m.components.length > 0));
+                    for (const m of oldPanels.values()) {
+                        await m.delete().catch(() => {});
+                    }
+                } catch (e) { console.error('[Delete Old Panels Error]', e); }
+
                 const files = [];
                 const embed = new EmbedBuilder()
                     .setTitle(config.title || 'نظام التذاكر')
@@ -2059,13 +2054,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                         embed.setImage(`${dashboardUrl.replace(/\/$/, '')}/uploads/${imgName}`);
                     } else {
                         files.push(new AttachmentBuilder(sugCfg.imagePath, { name: imgName }));
-                        const dashboardUrl = process.env.RENDER_EXTERNAL_URL || '';
-                if (dashboardUrl) {
-                    embed.setImage(`${dashboardUrl.replace(/\/$/, '')}/uploads/${imgName}`);
-                } else {
-                    files.push(new AttachmentBuilder(sugCfg.imagePath, { name: imgName }));
-                    embed.setImage(`attachment://${imgName}`);
-                }
+                        embed.setImage(`attachment://${imgName}`);
                     }
                 }
 
@@ -2478,7 +2467,7 @@ async function updateSuggestionVotes(reaction, user, isAdd) {
             { name: getEmojiDisplay(message.guild, sugCfg.emoji1), value: `${suggestion.votes1.length}`, inline: true },
             { name: getEmojiDisplay(message.guild, sugCfg.emoji2), value: `${suggestion.votes2.length}`, inline: true }
         );
-        await message.edit({ embeds: [embed] }).catch(() => {});
+        await message.edit({ embeds: [embed], attachments: [] }).catch(() => {});
     } catch (err) {
         console.error('[Suggestion Vote Error]', err);
     }
@@ -3007,27 +2996,59 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         // --- [ Ticket Control Menu ] ---
-        if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_control_menu') {
+                if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_control_menu') {
             const selected = interaction.values[0];
+            
+            // For modals, we can't defer. For others, we should.
+            if (selected === 'claim_ticket' || selected === 'close_ticket' || selected === 'summon_member') {
+                await interaction.deferReply({ ephemeral: true }).catch(() => {});
+            }
+
             const ticketData = await TicketData.findOne({ channelId: interaction.channelId });
-            if (!ticketData) return interaction.reply({ content: 'لم يتم العثور على بيانات التكت.', ephemeral: true });
+            if (!ticketData) {
+                const msg = 'لم يتم العثور على بيانات التكت.';
+                if (interaction.deferred) return interaction.editReply(msg);
+                return interaction.reply({ content: msg, ephemeral: true });
+            }
 
             const adminRoleId = ticketData.adminRoleId;
             const isAdmin = adminRoleId ? interaction.member.roles.cache.has(adminRoleId) : interaction.member.permissions.has(PermissionFlagsBits.Administrator);
             
-            if (!isAdmin) return interaction.reply({ content: 'هذه القائمة مخصصة لرتبة الإدارة المسؤولة عن هذا القسم فقط.', ephemeral: true });
+            if (!isAdmin) {
+                const msg = 'هذه القائمة مخصصة لرتبة الإدارة المسؤولة عن هذا القسم فقط.';
+                if (interaction.deferred) return interaction.editReply(msg);
+                return interaction.reply({ content: msg, ephemeral: true });
+            }
 
             if (selected === 'claim_ticket') {
+                if (ticketData.claimedBy) {
+                    const msg = `هذه التذكرة مستلمة بالفعل بواسطة <@${ticketData.claimedBy}>`;
+                    if (interaction.deferred) return interaction.editReply(msg);
+                    return interaction.reply({ content: msg, ephemeral: true });
+                }
+                
                 ticketData.claimedBy = interaction.user.id;
                 await ticketData.save();
-                return interaction.reply({ content: `تم استلام التكت بواسطة ${interaction.user}.`, ephemeral: false });
+
+                // Set permissions: Only Claimer and Owner can talk. Others (even other admins) locked out of talking.
+                await interaction.channel.permissionOverwrites.set([
+                    { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+                    { id: ticketData.ownerId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+                    { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] }
+                ]);
+
+                const msg = `تم استلام التكت بواسطة ${interaction.user}. تم فتح المحادثة الآن لك ولصاحب التذكرة فقط.`;
+                if (interaction.deferred) await interaction.editReply(msg);
+                else await interaction.reply({ content: msg, ephemeral: true });
+                
+                return interaction.channel.send(`✅ تم استلام التكت بواسطة ${interaction.user}.`);
             }
 
             if (selected === 'close_ticket') {
                 ticketData.closedAt = new Date();
                 ticketData.closedBy = interaction.user.id;
                 await ticketData.save();
-                await interaction.reply({ content: 'سيتم حذف التكت خلال 5 ثوان...', ephemeral: false });
+                await interaction.editReply('سيتم حذف التكت خلال 5 ثوان...');
                 setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
                 return;
             }
@@ -3049,8 +3070,8 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             if (selected === 'summon_member') {
-                await interaction.reply({ content: `<@${ticketData.ownerId}> تم استدعاؤك!`, ephemeral: false });
-                return;
+                await interaction.editReply('تم الاستدعاء.');
+                return interaction.channel.send(`<@${ticketData.ownerId}> تم استدعاؤك!`);
             }
         }
 
