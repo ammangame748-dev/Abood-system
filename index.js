@@ -1644,13 +1644,7 @@ app.get('/manage/:guildId/tickets', checkAuth, async (req, res) => {
                     <label>عنوان التذكرة</label>
                     <input name="title" value="${s.title || ''}" placeholder="عنوان نظام التذاكر">
                 </div>
-                <div>
-                    <label>رتبة الإدارة</label>
-                    <select name="adminRole">
-                        <option value="">-- اختر رتبة الإدارة --</option>
-                        ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.adminRole === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
-                    </select>
-                </div>
+                
             </div>
             <label>الوصف</label>
             <textarea name="description">${s.description || ''}</textarea>
@@ -1682,11 +1676,7 @@ ${[0,1,2,3].map(i => `
                 </div>
             </div>
 
-            <label style="margin-top:16px;">قناة الإرسال (اختياري)</label>
-            <select name="targetChannel">
-                <option value="">-- لا ترسل الآن --</option>
-                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}
-            </select>
+            
             
             <label style="margin-top:16px;">قناة إرسال لوحة التذاكر</label>
             <select name="targetChannel">
@@ -1725,7 +1715,6 @@ app.post('/save/:guildId/tickets', checkAuth, upload.fields([{ name: 'topImage' 
             title: b.title, 
             description: b.description, 
             color: b.color || '#1e90ff', 
-            adminRole: b.adminRole, 
             buttons, 
             menuOptions 
         };
@@ -3226,7 +3215,7 @@ async function openTicket(interaction, tConfig, ticketType) {
         const ticketCount = await TicketData.countDocuments({ guildId: interaction.guild.id }) + 1;
         const channelName = `ticket-${ticketCount}-${interaction.user.username}`.substring(0, 100);
 
-        let adminRoleId = tConfig.adminRole; 
+        let adminRoleId = null; 
         if (interaction.customId.startsWith('ticket_btn_')) {
             const idx = parseInt(interaction.customId.replace('ticket_btn_', ''));
             if (tConfig.buttons?.[idx]?.roleId) adminRoleId = tConfig.buttons[idx].roleId;
