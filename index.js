@@ -630,21 +630,20 @@ function ui(guild, active, content) {
         }
 
         /* ===== SIDEBAR ===== */
-                .sidebar {
+        .sidebar {
             width: var(--sidebar-w);
             background: rgba(7,7,15,0.95);
             border-left: 1px solid var(--border);
-            position: fixed;
-            right: 0; top: 0; bottom: 0;
+            position: relative;
             display: flex; flex-direction: column;
-            z-index: 1000;
+            z-index: 100;
             backdrop-filter: blur(20px);
             overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: var(--blue) transparent;
+            flex-shrink: 0;
             height: 100vh;
         }
-        
         .sidebar::-webkit-scrollbar { width: 4px; }
         .sidebar::-webkit-scrollbar-thumb { background: var(--blue); border-radius: 10px; }
 
@@ -712,7 +711,13 @@ function ui(guild, active, content) {
         @keyframes pulseBar { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
         /* ===== MAIN CONTENT ===== */
-        
+        .main {
+            margin-right: 0;
+            padding: 40px 50px;
+            flex: 1;
+            min-height: 100vh;
+            overflow-y: auto;
+        }
 
         .page-header {
             display: flex; align-items: center; gap: 15px;
@@ -908,7 +913,7 @@ function ui(guild, active, content) {
 
         /* ===== RESPONSIVE ===== */
         @media (max-width: 768px) {
-            /* sidebar placeholder */ width: 240px; }
+            .sidebar { width: 240px; }
             .main { margin-right: 240px; padding: 20px; }
         }
     </style>
@@ -1682,7 +1687,13 @@ ${[0,1,2,3].map(i => `
                 <option value="">-- لا ترسل الآن --</option>
                 ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}
             </select>
-            <button class="btn-save" style="margin-top:20px;">حفظ وإرسال</button>
+            
+            <label style="margin-top:16px;">قناة إرسال لوحة التذاكر</label>
+            <select name="targetChannel">
+                <option value="">-- اختر القناة للإرسال --</option>
+                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${s.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
+            </select>
+            <button class="btn-save" style="margin-top:12px;">حفظ وإرسال اللوحة</button>
         </div>
     </form>`;
 
@@ -1856,13 +1867,7 @@ app.get('/manage/:guildId/roles', checkAuth, async (req, res) => {
                     <input name="role_label_${i}" value="${s.rolesPanel?.[i]?.label || ''}" placeholder="نص الزر ${i+1}">
                 </div>`).join('')}
             </div>
-            
-            <label style="margin-top:16px;">قناة إرسال لوحة التذاكر</label>
-            <select name="targetChannel">
-                <option value="">-- اختر القناة للإرسال --</option>
-                ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}" ${s.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
-            </select>
-            <button class="btn-save" style="margin-top:12px;">حفظ وإرسال اللوحة</button>
+            <button class="btn-save" style="margin-top:12px;">حفظ اللوحة</button>
         </form>
     </div>`;
 
