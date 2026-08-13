@@ -183,6 +183,21 @@ const SuggestionConfig = mongoose.model('SuggestionConfig', new mongoose.Schema(
     emoji2: String
 }));
 
+const AdminPointsConfig = mongoose.model('AdminPointsConfig', new mongoose.Schema({
+    guildId: { type: String, unique: true },
+    channelId: { type: String, default: '' },
+    staffUserId: { type: String, default: '' }
+}));
+
+const AdminPoint = mongoose.model('AdminPoint', new mongoose.Schema({
+    guildId: String,
+    messageId: { type: String, unique: true },
+    channelId: String,
+    imageAuthorId: String,
+    awardedBy: String,
+    awardedAt: { type: Date, default: Date.now }
+}));
+
 const Suggestion = mongoose.model('Suggestion', new mongoose.Schema({
     guildId: String,
     messageId: String,
@@ -517,6 +532,10 @@ function ui(guild, active, content) {
         <a class="${active === 'admincmds' ? 'active' : ''}" href="/manage/${guild.id}/admincmds">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
             الأوامر الإدارية
+        </a>
+        <a class="${active === 'adminpoints' ? 'active' : ''}" href="/manage/${guild.id}/admin-points">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.1L21 9l-4.7 4.5L17.5 20 12 16.8 6.5 20l1.2-6.5L3 9l6.6-.9L12 2z"/></svg>
+            نقاط الإدارة
         </a>
         <a class="${active === 'suggestions' ? 'active' : ''}" href="/manage/${guild.id}/suggestions">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
@@ -1407,6 +1426,41 @@ app.post('/save/:guildId/suggestions', checkAuth, upload.single('suggestImage'),
     if (req.file) update.imagePath = req.file.path;
     await SuggestionConfig.findOneAndUpdate({ guildId }, { $set: update }, { upsert: true });
     res.redirect(`/manage/${guildId}/suggestions`);
+});
+
+// --- [ Admin Image Points ] ---
+app.get('/manage/:guildId/admin-points', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    if (!g) return res.redirect('/dashboard');
+    const cfg = await AdminPointsConfig.findOne({ guildId: g.id }) || { channelId: '', staffUserId: '' };
+    const selectedStaff = cfg.staffUserId ? await client.users.fetch(cfg.staffUserId).catch(() => null) : null;
+    const content = `
+    <form method="POST" action="/save/${g.id}/admin-points">
+        <div class="card">
+            <h3>نقاط الإدارة</h3>
+            <p style="color:var(--text-muted); font-size:13px;">حدد روم الصور وID الشخص الذي يمنح النقطة عند وضع إيموجي على صورة.</p>
+            <label>روم الصور</label>
+            <select name="channelId" required>
+                <option value="">-- اختر الروم --</option>
+                ${g.channels.cache.filter(c => c.type === ChannelType.GuildText).map(c => `<option value="${c.id}" ${cfg.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
+            </select>
+            <label>ID الشخص الذي يمنح النقطة</label>
+            <input type="text" name="staffUserId" value="${cfg.staffUserId || ''}" placeholder="123456789012345678" required>
+            ${selectedStaff ? `<p style="color:#00c853; font-size:12px;">الشخص الحالي: ${selectedStaff.tag}</p>` : ''}
+            <button class="btn-save" style="margin-top:20px;">حفظ الإعدادات</button>
+        </div>
+    </form>`;
+    res.send(ui(g, 'adminpoints', content));
+});
+
+app.post('/save/:guildId/admin-points', checkAuth, async (req, res) => {
+    const { guildId } = req.params;
+    const channelId = String(req.body.channelId || '').trim();
+    const staffUserId = String(req.body.staffUserId || '').trim();
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild || !channelId || !/^\d{15,25}$/.test(staffUserId)) return res.status(400).send('تأكد من اختيار الروم وكتابة ID صحيح للشخص.');
+    await AdminPointsConfig.findOneAndUpdate({ guildId }, { $set: { channelId, staffUserId } }, { upsert: true, new: true });
+    res.redirect(`/manage/${guildId}/admin-points`);
 });
 
 // --- [ Logs ] ---
@@ -2613,6 +2667,28 @@ async function updateSuggestionVotes(reaction, user, isAdd) {
     }
 }
 
+async function awardAdminImagePoint(reaction, user) {
+    try {
+        if (user.bot) return;
+        if (reaction.partial) await reaction.fetch().catch(() => {});
+        const message = reaction.message;
+        if (!message.guild) return;
+        const cfg = await AdminPointsConfig.findOne({ guildId: message.guild.id });
+        if (!cfg || cfg.channelId !== message.channel.id || cfg.staffUserId !== user.id) return;
+        if (!message.attachments?.some(a => (a.contentType || '').toLowerCase().startsWith('image/'))) return;
+        if (!message.author || message.author.bot) return;
+        await AdminPoint.updateOne(
+            { messageId: message.id },
+            { $setOnInsert: { guildId: message.guild.id, messageId: message.id, channelId: message.channel.id, imageAuthorId: message.author.id, awardedBy: user.id, awardedAt: new Date() } },
+            { upsert: true }
+        );
+    } catch (err) { console.error('[Admin Points Error]', err); }
+}
+
+client.on('messageReactionAdd', (reaction, user) => {
+    awardAdminImagePoint(reaction, user);
+    updateSuggestionVotes(reaction, user, true);
+});
 client.on('messageReactionAdd', (reaction, user) => updateSuggestionVotes(reaction, user, true));
 client.on('messageReactionRemove', (reaction, user) => updateSuggestionVotes(reaction, user, false));
 
@@ -3076,6 +3152,18 @@ client.on('interactionCreate', async (interaction) => {
                     )
                     .setFooter({ text: 'Abood System ' })
                     .setTimestamp();
+                return interaction.reply({ embeds: [embed] });
+            }
+
+            if (interaction.commandName === 'admin-points') {
+                const cfg = await AdminPointsConfig.findOne({ guildId: interaction.guild.id });
+                if (!cfg?.channelId || !cfg?.staffUserId) return interaction.reply({ content: 'لم يتم إعداد نقاط الإدارة من الداشبورد بعد.', ephemeral: true });
+                const points = await AdminPoint.find({ guildId: interaction.guild.id }).sort({ awardedAt: 1 });
+                if (!points.length) return interaction.reply({ content: 'لا توجد نقاط إدارية مسجلة حتى الآن.', ephemeral: true });
+                const totals = new Map();
+                for (const point of points) totals.set(point.imageAuthorId, (totals.get(point.imageAuthorId) || 0) + 1);
+                const description = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([id, count], i) => `${i + 1}. <@${id}> — **${count} نقطة إدارية**`).join('\\n');
+                const embed = new EmbedBuilder().setTitle('نقاط الإدارة').setDescription(description).setColor(0x1e90ff).setFooter({ text: `عدد الصور المحتسبة: ${points.length}` }).setTimestamp();
                 return interaction.reply({ embeds: [embed] });
             }
 
@@ -3605,6 +3693,9 @@ async function registerSlashCommands() {
             .addUserOption(o => o.setName('عضو').setDescription('العضو المطلوب').setRequired(false)),
 
         new SlashCommandBuilder().setName('serverinfo').setDescription('عرض معلومات عن السيرفر'),
+
+        new SlashCommandBuilder().setName('admin-points').setDescription('عرض نقاط الإدارة')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
         new SlashCommandBuilder().setName('avatar').setDescription('عرض صورة عضو')
             .addUserOption(o => o.setName('عضو').setDescription('العضو المطلوب').setRequired(false)),
