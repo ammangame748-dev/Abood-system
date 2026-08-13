@@ -1180,26 +1180,17 @@ app.post('/save/:guildId/admincmds', checkAuth, async (req, res) => {
 
 // --- [ Dashboard - Server List ] ---
 app.get('/dashboard', checkAuth, (req, res) => {
-    const adminGuilds = req.user.guilds.filter(g => {
-        const p = BigInt(g.permissions);
-        return (p & 8n) === 8n || (p & 32n) === 32n;
-    });
-    const inviteLink = 'https://discord.com/oauth2/authorize?client_id=' + process.env.CLIENT_ID + '&permissions=8&scope=bot%20applications.commands';
+    // عرض جميع السيرفرات التي البوت موجود فيها حاليًا
+    const botGuilds = [...client.guilds.cache.values()].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 
-    const cards = adminGuilds.map(g => {
-        const hasBot = client.guilds.cache.has(g.id);
-        const iconURL = g.icon
-            ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=256`
-            : 'https://cdn.discordapp.com/embed/avatars/0.png';
-
+    const cards = botGuilds.map(g => {
+        const iconURL = g.iconURL({ extension: 'png', size: 256 }) || 'https://cdn.discordapp.com/embed/avatars/0.png';
         return `
         <div class="guild-card">
             <img src="${iconURL}" class="guild-icon" alt="${g.name}">
             <h3>${g.name}</h3>
-            ${hasBot
-                ? `<a href="/manage/${g.id}/home" style="color:var(--blue);">الإعدادات</a>`
-                : `<a href="${inviteLink}" style="color:#00c853;">اضافة البوت</a>`
-            }
+            <p style="color:var(--text-muted); font-size:12px; margin-bottom:10px;">${g.memberCount || 0} عضو</p>
+            <a href="/manage/${g.id}/home" style="color:var(--blue);">الإعدادات</a>
         </div>`;
     }).join('');
 
