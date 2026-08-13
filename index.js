@@ -198,6 +198,24 @@ const AdminPoint = mongoose.model('AdminPoint', new mongoose.Schema({
     awardedAt: { type: Date, default: Date.now }
 }));
 
+const AdminApplicationConfig = mongoose.model('AdminApplicationConfig', new mongoose.Schema({
+    guildId: { type: String, unique: true },
+    panelChannelId: { type: String, default: '' },
+    applicationsChannelId: { type: String, default: '' },
+    questions: { type: [String], default: ['', '', '', '', ''] }
+}));
+
+const AdminApplication = mongoose.model('AdminApplication', new mongoose.Schema({
+    guildId: String,
+    messageId: String,
+    applicantId: String,
+    answers: { type: [String], default: [] },
+    status: { type: String, default: 'pending' },
+    reviewedBy: String,
+    rejectionReason: String,
+    createdAt: { type: Date, default: Date.now }
+}));
+
 const Suggestion = mongoose.model('Suggestion', new mongoose.Schema({
     guildId: String,
     messageId: String,
@@ -536,6 +554,10 @@ function ui(guild, active, content) {
         <a class="${active === 'giverole' ? 'active' : ''}" href="/manage/${guild.id}/give-role">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.1L21 9l-4.7 4.5L17.5 20 12 16.8 6.5 20l1.2-6.5L3 9l6.6-.9L12 2z"/></svg>
             إعطاء رتبة
+        </a>
+        <a class="${active === 'adminapply' ? 'active' : ''}" href="/manage/${guild.id}/admin-application">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zM8 11c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.91 1.97 3.45V19h7v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            تقديم الإدارة
         </a>
         <a class="${active === 'adminpoints' ? 'active' : ''}" href="/manage/${guild.id}/admin-points">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.1L21 9l-4.7 4.5L17.5 20 12 16.8 6.5 20l1.2-6.5L3 9l6.6-.9L12 2z"/></svg>
@@ -1466,6 +1488,50 @@ app.post('/save/:guildId/give-role', checkAuth, async (req, res) => {
     await member.roles.add(role).catch(() => null);
     if (!member.roles.cache.has(role.id)) return res.redirect(`/manage/${guildId}/give-role?message=${encodeURIComponent('حدث خطأ أثناء إعطاء الرتبة.')}`);
     res.redirect(`/manage/${guildId}/give-role?message=${encodeURIComponent(`تم إعطاء رتبة ${role.name} للعضو بنجاح.`)}`);
+});
+
+// --- [ Admin Application ] ---
+app.get('/manage/:guildId/admin-application', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    if (!g) return res.redirect('/dashboard');
+    const cfg = await AdminApplicationConfig.findOne({ guildId: g.id }) || { panelChannelId: '', applicationsChannelId: '', questions: ['', '', '', '', ''] };
+    const questions = Array.from({ length: 5 }, (_, i) => cfg.questions?.[i] || '');
+    const content = `
+    <form method="POST" action="/save/${g.id}/admin-application">
+        <div class="card">
+            <h3>إعدادات التقديم على الإدارة</h3>
+            <p style="color:var(--text-muted); font-size:13px;">حدد روم البانل، روم استقبال الطلبات، واكتب خمسة أسئلة للمتقدمين.</p>
+            <label>روم إرسال بانل التقديم</label>
+            <select name="panelChannelId" required>
+                <option value="">-- اختر الروم --</option>
+                ${g.channels.cache.filter(c => c.type === ChannelType.GuildText).map(c => `<option value="${c.id}" ${cfg.panelChannelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
+            </select>
+            <label>روم استقبال طلبات الإدارة</label>
+            <select name="applicationsChannelId" required>
+                <option value="">-- اختر الروم --</option>
+                ${g.channels.cache.filter(c => c.type === ChannelType.GuildText).map(c => `<option value="${c.id}" ${cfg.applicationsChannelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
+            </select>
+            ${questions.map((q, i) => `<label>السؤال ${i + 1}</label><input name="question_${i}" value="${q.replace(/"/g, '&quot;')}" placeholder="اكتب السؤال ${i + 1}" required>`).join('')}
+            <button class="btn-save" style="margin-top:20px;">حفظ وإرسال بانل التقديم</button>
+        </div>
+    </form>`;
+    res.send(ui(g, 'adminapply', content));
+});
+
+app.post('/save/:guildId/admin-application', checkAuth, async (req, res) => {
+    const { guildId } = req.params;
+    const guild = client.guilds.cache.get(guildId);
+    const panelChannelId = String(req.body.panelChannelId || '').trim();
+    const applicationsChannelId = String(req.body.applicationsChannelId || '').trim();
+    const questions = Array.from({ length: 5 }, (_, i) => String(req.body[`question_${i}`] || '').trim());
+    if (!guild || !panelChannelId || !applicationsChannelId || questions.some(q => !q)) return res.status(400).send('يرجى تعبئة الرومات والأسئلة الخمسة.');
+    await AdminApplicationConfig.findOneAndUpdate({ guildId }, { $set: { panelChannelId, applicationsChannelId, questions } }, { upsert: true, new: true });
+    const channel = guild.channels.cache.get(panelChannelId);
+    if (!channel) return res.status(400).send('روم البانل غير موجود.');
+    const embed = new EmbedBuilder().setTitle('التقديم على الإدارة').setDescription('للتقديم على الإدارة، اضغط على الزر الموجود بالأسفل وأجب عن الأسئلة.').setColor(0x1e90ff).setTimestamp();
+    const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('admin_application_start').setLabel('تقديم على الإدارة').setStyle(ButtonStyle.Primary));
+    await channel.send({ embeds: [embed], components: [row] });
+    res.redirect(`/manage/${guildId}/admin-application`);
 });
 
 // --- [ Admin Image Points ] ---
@@ -2959,6 +3025,76 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 client.on('interactionCreate', async (interaction) => {
     try {
         if (!interaction.guild) return;
+
+        // --- [ Admin Application Button ] ---
+        if (interaction.isButton() && interaction.customId === 'admin_application_start') {
+            const cfg = await AdminApplicationConfig.findOne({ guildId: interaction.guild.id });
+            if (!cfg?.questions?.length || cfg.questions.length < 5) return interaction.reply({ content: 'لم يتم إعداد أسئلة التقديم بعد.', ephemeral: true });
+            const modal = new ModalBuilder().setCustomId('admin_application_modal').setTitle('التقديم على الإدارة');
+            cfg.questions.slice(0, 5).forEach((question, i) => {
+                modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId(`admin_answer_${i}`).setLabel(question.slice(0, 45)).setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000)));
+            });
+            return interaction.showModal(modal);
+        }
+
+        // --- [ Admin Application Submit ] ---
+        if (interaction.isModalSubmit() && interaction.customId === 'admin_application_modal') {
+            const cfg = await AdminApplicationConfig.findOne({ guildId: interaction.guild.id });
+            if (!cfg?.applicationsChannelId) return interaction.reply({ content: 'لم يتم إعداد روم استقبال الطلبات.', ephemeral: true });
+            const targetChannel = interaction.guild.channels.cache.get(cfg.applicationsChannelId);
+            if (!targetChannel) return interaction.reply({ content: 'روم استقبال الطلبات غير موجود.', ephemeral: true });
+            const answers = Array.from({ length: 5 }, (_, i) => interaction.fields.getTextInputValue(`admin_answer_${i}`));
+            const embed = new EmbedBuilder().setTitle('طلب تقديم على الإدارة').setDescription(`المتقدم: <@${interaction.user.id}>`).setColor(0xffb703).addFields(answers.map((answer, i) => ({ name: cfg.questions[i] || `السؤال ${i + 1}`, value: answer.slice(0, 1024) })) ).setTimestamp();
+            const application = await AdminApplication.create({ guildId: interaction.guild.id, applicantId: interaction.user.id, answers });
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId(`admin_app_accept:${application._id}`).setLabel('قبول').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId(`admin_app_reject:${application._id}`).setLabel('رفض').setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId(`admin_app_reject_reason:${application._id}`).setLabel('رفض مع سبب').setStyle(ButtonStyle.Secondary)
+            );
+            const sent = await targetChannel.send({ embeds: [embed], components: [row] });
+            application.messageId = sent.id;
+            await application.save();
+            return interaction.reply({ content: 'تم إرسال طلبك للإدارة بنجاح.', ephemeral: true });
+        }
+
+        // --- [ Admin Application Review ] ---
+        if (interaction.isButton() && interaction.customId.startsWith('admin_app_')) {
+            const isStaff = interaction.member.permissions.has(PermissionFlagsBits.Administrator) || interaction.member.permissions.has(PermissionFlagsBits.ManageGuild);
+            if (!isStaff) return interaction.reply({ content: 'هذا الإجراء مخصص للإدارة فقط.', ephemeral: true });
+            const [action, id] = interaction.customId.replace('admin_app_', '').split(':');
+            const application = await AdminApplication.findById(id);
+            if (!application || application.guildId !== interaction.guild.id) return interaction.reply({ content: 'الطلب غير موجود.', ephemeral: true });
+            if (application.status !== 'pending') return interaction.reply({ content: 'تم اتخاذ إجراء على هذا الطلب مسبقًا.', ephemeral: true });
+            if (action === 'reject_reason') {
+                const modal = new ModalBuilder().setCustomId(`admin_app_reason_modal:${id}`).setTitle('سبب رفض الطلب');
+                modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('reason').setLabel('اكتب سبب الرفض').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000)));
+                return interaction.showModal(modal);
+            }
+            const applicant = await client.users.fetch(application.applicantId).catch(() => null);
+            application.status = action === 'accept' ? 'accepted' : 'rejected';
+            application.reviewedBy = interaction.user.id;
+            await application.save();
+            if (applicant) await applicant.send(action === 'accept' ? `تم قبولك كـ **أدمن تجريبي** في سيرفر **${interaction.guild.name}**.` : `تم رفض طلبك للتقديم على الإدارة في سيرفر **${interaction.guild.name}**.`).catch(() => {});
+            const updated = EmbedBuilder.from(interaction.message.embeds[0]).setColor(action === 'accept' ? 0x00c853 : 0xe63946).addFields({ name: 'النتيجة', value: action === 'accept' ? `تم القبول بواسطة <@${interaction.user.id}>` : `تم الرفض بواسطة <@${interaction.user.id}>` });
+            return interaction.update({ embeds: [updated], components: [] });
+        }
+
+        if (interaction.isModalSubmit() && interaction.customId.startsWith('admin_app_reason_modal:')) {
+            const id = interaction.customId.split(':')[1];
+            const isStaff = interaction.member.permissions.has(PermissionFlagsBits.Administrator) || interaction.member.permissions.has(PermissionFlagsBits.ManageGuild);
+            if (!isStaff) return interaction.reply({ content: 'هذا الإجراء مخصص للإدارة فقط.', ephemeral: true });
+            const application = await AdminApplication.findById(id);
+            if (!application || application.guildId !== interaction.guild.id || application.status !== 'pending') return interaction.reply({ content: 'الطلب غير موجود أو تمت معالجته.', ephemeral: true });
+            const reason = interaction.fields.getTextInputValue('reason');
+            application.status = 'rejected';
+            application.reviewedBy = interaction.user.id;
+            application.rejectionReason = reason;
+            await application.save();
+            const applicant = await client.users.fetch(application.applicantId).catch(() => null);
+            if (applicant) await applicant.send(`تم رفض طلبك للتقديم على الإدارة في سيرفر **${interaction.guild.name}**.\nالسبب: ${reason}\n<@${application.applicantId}>`).catch(() => {});
+            const updated = EmbedBuilder.from(interaction.message.embeds[0]).setColor(0xe63946).addFields({ name: 'النتيجة', value: `تم الرفض بواسطة <@${interaction.user.id}>\nالسبب: ${reason}` });
+            return interaction.update({ embeds: [updated], components: [] });
+        }
 
         // --- [ Slash Commands ] ---
         if (interaction.isChatInputCommand()) {
