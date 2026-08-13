@@ -533,6 +533,10 @@ function ui(guild, active, content) {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
             الأوامر الإدارية
         </a>
+        <a class="${active === 'giverole' ? 'active' : ''}" href="/manage/${guild.id}/give-role">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.1L21 9l-4.7 4.5L17.5 20 12 16.8 6.5 20l1.2-6.5L3 9l6.6-.9L12 2z"/></svg>
+            إعطاء رتبة
+        </a>
         <a class="${active === 'adminpoints' ? 'active' : ''}" href="/manage/${guild.id}/admin-points">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.1L21 9l-4.7 4.5L17.5 20 12 16.8 6.5 20l1.2-6.5L3 9l6.6-.9L12 2z"/></svg>
             نقاط الإدارة
@@ -1426,6 +1430,51 @@ app.post('/save/:guildId/suggestions', checkAuth, upload.single('suggestImage'),
     if (req.file) update.imagePath = req.file.path;
     await SuggestionConfig.findOneAndUpdate({ guildId }, { $set: update }, { upsert: true });
     res.redirect(`/manage/${guildId}/suggestions`);
+});
+
+// --- [ Give Role ] ---
+app.get('/manage/:guildId/give-role', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    if (!g) return res.redirect('/dashboard');
+    const message = req.query.message ? decodeURIComponent(req.query.message) : '';
+    const roles = g.roles.cache.filter(r => r.id !== g.id && !r.managed).sort((a, b) => b.position - a.position);
+    const content = `
+    <div class="card">
+        <h3>إعطاء رتبة لعضو</h3>
+        <p style="color:var(--text-muted); font-size:13px; margin-bottom:18px;">اختر الرتبة واكتب ID العضو، وبعد الحفظ سيتم إعطاء الرتبة مباشرة.</p>
+        ${message ? `<div style="background:rgba(0,200,83,0.12); border:1px solid #00c853; color:#00c853; padding:12px; border-radius:10px; margin-bottom:16px;">${message}</div>` : ''}
+        <form method="POST" action="/save/${g.id}/give-role">
+            <label>الرتبة</label>
+            <select name="roleId" required>
+                <option value="">-- اختر الرتبة --</option>
+                ${roles.map(r => `<option value="${r.id}">@${r.name}</option>`).join('')}
+            </select>
+            <label>ID العضو</label>
+            <input type="text" name="memberId" placeholder="123456789012345678" required>
+            <button class="btn-save" style="margin-top:20px;">حفظ وإعطاء الرتبة</button>
+        </form>
+    </div>`;
+    res.send(ui(g, 'giverole', content));
+});
+
+app.post('/save/:guildId/give-role', checkAuth, async (req, res) => {
+    const { guildId } = req.params;
+    const roleId = String(req.body.roleId || '').trim();
+    const memberId = String(req.body.memberId || '').trim();
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild || !/^\d{15,25}$/.test(memberId)) return res.redirect(`/manage/${guildId}/give-role?message=${encodeURIComponent('تأكد من كتابة ID صحيح للعضو.')}`);
+    const role = guild.roles.cache.get(roleId);
+    if (!role || role.managed) return res.redirect(`/manage/${guildId}/give-role?message=${encodeURIComponent('الرتبة غير موجودة أو لا يمكن إعطاؤها.')}`);
+    const member = await guild.members.fetch(memberId).catch(() => null);
+    if (!member) return res.redirect(`/manage/${guildId}/give-role?message=${encodeURIComponent('العضو غير موجود في السيرفر.')}`);
+    const botMember = guild.members.me;
+    if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= botMember.roles.highest.position) {
+        return res.redirect(`/manage/${guildId}/give-role?message=${encodeURIComponent('لا أستطيع إعطاء هذه الرتبة. تأكد أن رتبة البوت أعلى منها ولديه صلاحية إدارة الرتب.')}`);
+    }
+    if (member.roles.cache.has(role.id)) return res.redirect(`/manage/${guildId}/give-role?message=${encodeURIComponent('العضو يملك هذه الرتبة مسبقًا.')}`);
+    await member.roles.add(role).catch(() => null);
+    if (!member.roles.cache.has(role.id)) return res.redirect(`/manage/${guildId}/give-role?message=${encodeURIComponent('حدث خطأ أثناء إعطاء الرتبة.')}`);
+    res.redirect(`/manage/${guildId}/give-role?message=${encodeURIComponent(`تم إعطاء رتبة ${role.name} للعضو بنجاح.`)}`);
 });
 
 // --- [ Admin Image Points ] ---
