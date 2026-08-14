@@ -143,6 +143,13 @@ const GuildConfig = mongoose.model('GuildConfig', new mongoose.Schema({
     },
 }));
 
+const NotificationRoleConfig = mongoose.model('NotificationRoleConfig', new mongoose.Schema({
+    guildId:{type:String,unique:true}, channelId:String,
+    title:{type:String,default:'لوحة رتب الإشعارات'}, description:{type:String,default:'اختر الإشعارات التي تريد استلامها.'},
+    color:{type:String,default:'#1e90ff'}, placeholder:{type:String,default:'اختر رتب الإشعارات'},
+    roles:[{roleId:String,label:String,description:String,emoji:String}]
+}));
+
 const Stats = mongoose.model('Stats', new mongoose.Schema({
     guildId: String,
     messages: {
@@ -288,7 +295,7 @@ mongoose.connect(process.env.MONGO_CONNECTION_STRING)
 // ==========================================
 // 5. الدوال المساعدة
 // ==========================================
-async function sendLog(guild, type, embed) {
+async function sendLog(guild, type, embed, files = []) {
     const config = await GuildConfig.findOne({ guildId: guild.id });
     if (!config?.logs) return;
     const logChannelId = config.logs[type]?.channel;
@@ -296,7 +303,7 @@ async function sendLog(guild, type, embed) {
     if (!enabled || !logChannelId) return;
     const logChannel = guild.channels.cache.get(logChannelId);
     if (!logChannel) return;
-    logChannel.send({ embeds: [embed] }).catch(() => {});
+    logChannel.send({ embeds: [embed], files }).catch(() => {});
 }
 
 async function getExecutor(guild, actionType) {
@@ -308,6 +315,13 @@ async function getExecutor(guild, actionType) {
     } catch {
         return 'غير معروف';
     }
+}
+
+function parseDuration(input) {
+    const m=String(input||'').trim().toLowerCase().match(/^(\d+)(s|m|h|d|w)$/);
+    if(!m) return null;
+    const ms=Number(m[1])*({s:1000,m:60000,h:3600000,d:86400000,w:604800000}[m[2]]);
+    return Number.isFinite(ms)&&ms>=5000&&ms<=2419200000?{milliseconds:ms,text:m[0]}:null;
 }
 
 function getEmojiDisplay(guild, emojiId) {
@@ -595,6 +609,7 @@ function ui(guild, active, content) {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             توزيع الرتب
         </a>
+        <a class="${active === 'notificationroles' ? 'active' : ''}" href="/manage/${guild.id}/notification-roles">🔔 رتب الإشعارات</a>
         <a class="${active === 'roles' ? 'active' : ''}" href="/manage/${guild.id}/roles">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             الرتب
@@ -2190,6 +2205,23 @@ app.post('/save/:guildId/roles', checkAuth, async (req, res) => {
 });
 
 
+// --- [ Notification Roles Panel ] ---
+app.get('/manage/:guildId/notification-roles', checkAuth, async (req,res)=>{
+ const g=client.guilds.cache.get(req.params.guildId); if(!g)return res.redirect('/dashboard');
+ const c=await NotificationRoleConfig.findOne({guildId:g.id})||{};
+ const esc=x=>String(x||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+ const roles=g.roles.cache.filter(r=>r.id!==g.id&&!r.managed).sort((a,b)=>b.position-a.position); const saved=Array.from({length:25},(_,i)=>c.roles?.[i]||{});
+ const content=`<form method="POST" action="/save/${g.id}/notification-roles"><div class="card"><h3>لوحة رتب الإشعارات</h3><p style="color:var(--text-muted)">اختر عدة رتب واكتب اسم ووصف وإيموجي لكل رتبة.</p><label>القناة</label><select name="channelId" required><option value="">-- اختر القناة --</option>${g.channels.cache.filter(x=>x.type===ChannelType.GuildText).map(x=>`<option value="${x.id}" ${c.channelId===x.id?'selected':''}># ${esc(x.name)}</option>`).join('')}</select><label>عنوان الـ Embed</label><input name="title" value="${esc(c.title||'لوحة رتب الإشعارات')}" required><label>شرح الـ Embed</label><textarea name="description" required>${esc(c.description||'اختر الإشعارات التي تريد استلامها.')}</textarea><label>اللون</label><input name="color" value="${esc(c.color||'#1e90ff')}"><label>نص المنيو</label><input name="placeholder" value="${esc(c.placeholder||'اختر رتب الإشعارات')}" required><h4>الرتب حتى 25</h4>${saved.map((x,i)=>`<div style="display:grid;grid-template-columns:1.5fr 1fr 1.5fr 1fr;gap:8px;margin:8px 0"><select name="role_id_${i}"><option value="">-- رتبة --</option>${roles.map(r=>`<option value="${r.id}" ${x.roleId===r.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select><input name="role_label_${i}" value="${esc(x.label)}" placeholder="الاسم"><input name="role_description_${i}" value="${esc(x.description)}" placeholder="الشرح"><input name="role_emoji_${i}" value="${esc(x.emoji)}" placeholder="الإيموجي أو ID"></div>`).join('')}<button class="btn-save">حفظ وإرسال اللوحة</button></div></form>`;
+ res.send(ui(g,'notificationroles',content));
+});
+app.post('/save/:guildId/notification-roles',checkAuth,async(req,res)=>{
+ const {guildId}=req.params,g=client.guilds.cache.get(guildId),b=req.body; if(!g)return res.status(404).send('السيرفر غير موجود');
+ const ch=g.channels.cache.get(String(b.channelId||'')); if(!ch||ch.type!==ChannelType.GuildText)return res.status(400).send('اختر قناة نصية صحيحة'); const roles=[];
+ for(let i=0;i<25;i++){const id=String(b[`role_id_${i}`]||'').trim(),r=g.roles.cache.get(id),label=String(b[`role_label_${i}`]||'').trim();if(id&&r&&!r.managed&&label)roles.push({roleId:id,label:label.slice(0,100),description:String(b[`role_description_${i}`]||'').slice(0,100),emoji:String(b[`role_emoji_${i}`]||'').slice(0,100)});}
+ if(!roles.length)return res.status(400).send('اختر رتبة واحدة على الأقل'); const cfg=await NotificationRoleConfig.findOneAndUpdate({guildId},{$set:{guildId,channelId:ch.id,title:String(b.title||'لوحة رتب الإشعارات').slice(0,256),description:String(b.description||'').slice(0,4000),color:/^#[0-9a-f]{6}$/i.test(b.color||'')?b.color:'#1e90ff',placeholder:String(b.placeholder||'اختر رتب الإشعارات').slice(0,150),roles}},{upsert:true,new:true});
+ const e=new EmbedBuilder().setTitle(cfg.title).setDescription(cfg.description).setColor(parseInt(cfg.color.slice(1),16)).setTimestamp(); const menu=new StringSelectMenuBuilder().setCustomId('notification_roles_menu').setPlaceholder(cfg.placeholder).setMinValues(1).setMaxValues(Math.min(25,cfg.roles.length)).addOptions(cfg.roles.map(r=>({label:r.label,value:r.roleId,description:r.description||undefined,emoji:/^\d+$/.test(r.emoji)?{id:r.emoji}:r.emoji||undefined}))); await ch.send({embeds:[e],components:[new ActionRowBuilder().addComponents(menu)]}).catch(console.error); res.redirect(`/manage/${guildId}/notification-roles`);
+});
+
 // --- [ Mod / Jail Config ] ---
 app.get('/manage/:guildId/mod', checkAuth, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
@@ -2292,10 +2324,12 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                 } else if (actionKey === 'unlock') {
                     await msg.channel.permissionOverwrites.edit(msg.guild.roles.everyone, { SendMessages: null });
                     resultMsg = await msg.channel.send('🔓 تم فتح الشات بنجاح.');
-                } else if (actionKey === 'timeout' && target) {
-                    const mins = parseInt(args[2]) || 60;
-                    await target.timeout(mins * 60 * 1000).catch(() => {});
-                    resultMsg = await msg.channel.send(`⏳ تم إعطاء تايم أوت لـ ${target.user.username} لمدة ${mins} دقيقة.`);
+                } else if (actionKey === 'timeout') {
+                    const duration=parseDuration(args[2]);
+                    if(!target) resultMsg=await msg.channel.send('الاستخدام الصحيح: الاختصار @العضو 1m أو 30s أو 2h.');
+                    else if(!duration) resultMsg=await msg.channel.send('المدة غير صحيحة. استخدم 30s أو 1m أو 2h أو 1d، والحد الأقصى 28d.');
+                    else if(!target.moderatable) resultMsg=await msg.channel.send('لا أستطيع إعطاء تايم أوت لهذا العضو.');
+                    else { const ok=await target.timeout(duration.milliseconds,`بواسطة ${msg.author.tag}`).catch(()=>null); resultMsg=ok?await msg.channel.send(`⏳ تم إعطاء تايم أوت لـ ${target.user.username} لمدة ${duration.text}.`):await msg.channel.send('فشل تطبيق التايم أوت.'); }
                 } else if (actionKey === 'untimeout' && target) {
                     await target.timeout(null).catch(() => {});
                     resultMsg = await msg.channel.send(`✅ تم فك التايم أوت عن ${target.user.username}.`);
@@ -2341,7 +2375,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                 const files = [];
                 const dashboardUrl = process.env.RENDER_EXTERNAL_URL || '';
                 if (attachmentImg) {
-                    embed.setImage(attachmentImg.url);
+                    try { const r=await axios.get(attachmentImg.url,{responseType:'arraybuffer',timeout:15000}); const n=`suggestion-${Date.now()}-${path.basename(new URL(attachmentImg.url).pathname)||'image.png'}`; files.push(new AttachmentBuilder(Buffer.from(r.data),{name:n})); embed.setImage(`attachment://${n}`); } catch(e) { embed.setImage(attachmentImg.url); }
                 } else if (sugCfg.imagePath && fs.existsSync(sugCfg.imagePath)) {
                     const imgName = path.basename(sugCfg.imagePath);
                     if (dashboardUrl) {
@@ -2797,7 +2831,8 @@ client.on('messageReactionAdd', (reaction, user) => {
     updateSuggestionVotes(reaction, user, true);
 });
 client.on('messageReactionAdd', (reaction, user) => updateSuggestionVotes(reaction, user, true));
-client.on('messageReactionRemove', (reaction, user) => updateSuggestionVotes(reaction, user, false));
+client.on('messageReactionAdd',async(r,u)=>{if(u.bot||!r.message.guild)return;const m=r.message;await sendLog(m.guild,'messages',new EmbedBuilder().setTitle('إضافة رياكشن').setColor(0x00c853).setURL(m.url).addFields({name:'العضو',value:`<@${u.id}>`,inline:true},{name:'الإيموجي',value:r.emoji.toString(),inline:true},{name:'الرسالة',value:`[فتح الرسالة](${m.url})`}).setTimestamp());});
+client.on('messageReactionRemove',async(r,u)=>{if(u.bot||!r.message.guild)return;const m=r.message;await sendLog(m.guild,'messages',new EmbedBuilder().setTitle('إزالة رياكشن').setColor(0xe63946).setURL(m.url).addFields({name:'العضو',value:`<@${u.id}>`,inline:true},{name:'الإيموجي',value:r.emoji.toString(),inline:true},{name:'الرسالة',value:`[فتح الرسالة](${m.url})`}).setTimestamp());});
 
 // ==========================================
 // 11. Audit Log Events (بدون إيموجي في اللوق)
@@ -2815,10 +2850,12 @@ client.on('messageDelete', async (message) => {
             { name: 'صاحب الرسالة', value: `<@${message.author.id}>`, inline: true },
             { name: 'حذفها', value: executor ? `<@${executor.id}>` : 'غير معروف', inline: true },
             { name: 'القناة', value: `<#${message.channel.id}>`, inline: true },
-            { name: 'المحتوى', value: message.content || '(لا يوجد نص)' }
+            { name: 'المحتوى', value: (message.content || '(لا يوجد نص)').slice(0,1024) },
+            { name: 'المرفقات', value: [...(message.attachments?.values()||[])].map((a,i)=>`[ملف ${i+1}](${a.url})`).join('\n').slice(0,1024)||'لا يوجد' },
+            { name: 'الرابط', value: `[فتح الرسالة](${message.url})` }
         )
-        .setTimestamp();
-
+        .setURL(message.url).setTimestamp();
+    const deletedImage=[...(message.attachments?.values()||[])].find(a=>a.contentType?.startsWith('image/')); if(deletedImage)embed.setImage(deletedImage.url);
     await sendLog(message.guild, 'messages', embed);
 });
 
@@ -2968,6 +3005,19 @@ client.on('channelCreate', async (channel) => {
     await sendLog(channel.guild, 'channels', embed);
 });
 
+client.on('channelUpdate', async (oldChannel, newChannel) => {
+    if (!newChannel.guild) return;
+    const changes = [];
+    if (oldChannel.name !== newChannel.name) changes.push(`الاسم: ${oldChannel.name} ← ${newChannel.name}`);
+    if (oldChannel.topic !== newChannel.topic) changes.push(`الموضوع تغيّر`);
+    if (!changes.length) return;
+    const audit = await newChannel.guild.fetchAuditLogs({ type: AuditLogEvent.ChannelUpdate, limit: 1 }).catch(() => null);
+    const executor = audit?.entries.first()?.executor;
+    const embed = new EmbedBuilder().setTitle('تعديل قناة').setColor(0xffd166).addFields({ name: 'القناة', value: `<#${newChannel.id}>`, inline: true }, { name: 'المسؤول', value: executor ? `<@${executor.id}>` : 'غير معروف', inline: true }, { name: 'التغييرات', value: changes.join('\
+').slice(0, 1024) }).setTimestamp();
+    await sendLog(newChannel.guild, 'channels', embed);
+});
+
 client.on('channelDelete', async (channel) => {
     if (!channel.guild) return;
     const embed = new EmbedBuilder()
@@ -2985,6 +3035,16 @@ client.on('roleCreate', async (role) => {
         .addFields({ name: 'الرتبة', value: role.name })
         .setTimestamp();
     await sendLog(role.guild, 'roles', embed);
+});
+
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    const added = newMember.roles.cache.filter(r => !oldMember.roles.cache.has(r.id));
+    const removed = oldMember.roles.cache.filter(r => !newMember.roles.cache.has(r.id));
+    if (!added.size && !removed.size) return;
+    const audit = await newMember.guild.fetchAuditLogs({ type: AuditLogEvent.MemberRoleUpdate, limit: 1 }).catch(() => null);
+    const executor = audit?.entries.first()?.executor;
+    const embed = new EmbedBuilder().setTitle('تحديث رتب عضو').setColor(0xffd166).setThumbnail(newMember.user.displayAvatarURL()).addFields({ name: 'العضو', value: `<@${newMember.id}>`, inline: true }, { name: 'المسؤول', value: executor ? `<@${executor.id}>` : 'غير معروف', inline: true }, { name: 'الرتب المضافة', value: added.size ? added.map(r => `<@&${r.id}>`).join('، ') : 'لا يوجد' }, { name: 'الرتب المحذوفة', value: removed.size ? removed.map(r => `<@&${r.id}>`).join('، ') : 'لا يوجد' }).setTimestamp();
+    await sendLog(newMember.guild, 'roles', embed);
 });
 
 client.on('roleDelete', async (role) => {
@@ -3352,6 +3412,13 @@ client.on('interactionCreate', async (interaction) => {
                     .setColor(0x1e90ff);
                 return interaction.reply({ embeds: [embed] });
             }
+        }
+
+        // --- [ Notification Roles Select Menu ] ---
+        if(interaction.isStringSelectMenu()&&interaction.customId==='notification_roles_menu'){
+            const cfg=await NotificationRoleConfig.findOne({guildId:interaction.guild.id}); if(!cfg)return interaction.reply({content:'لم يتم إعداد اللوحة.',ephemeral:true}); const botTop=interaction.guild.members.me?.roles.highest.position||0,added=[],removed=[],failed=[];
+            for(const id of interaction.values){const r=interaction.guild.roles.cache.get(id);if(!r||r.managed||r.position>=botTop){failed.push(r?.name||id);continue;} if(interaction.member.roles.cache.has(id)){await interaction.member.roles.remove(id).then(()=>removed.push(r.name)).catch(()=>failed.push(r.name));}else await interaction.member.roles.add(id).then(()=>added.push(r.name)).catch(()=>failed.push(r.name));}
+            return interaction.reply({content:[added.length?`تمت الإضافة: ${added.join('، ')}`:'',removed.length?`تمت الإزالة: ${removed.join('، ')}`:'',failed.length?`تعذر تعديل: ${failed.join('، ')}`:''].filter(Boolean).join('\\n')||'لم يتم تعديل أي رتبة.',ephemeral:true});
         }
 
         // --- [ Self Roles ] ---
