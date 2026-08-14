@@ -2419,6 +2419,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
 
     // --- [ أمر -خط ] ---
     if (msg.content === '-خط') {
+        if (!msg.member.permissions.has(PermissionFlagsBits.Administrator)) return;
         const sConfig = await GuildConfig.findOne({ guildId: msg.guild.id });
         const savedBanner = sConfig?.welcome?.bannerURL;
         if (!savedBanner) return msg.reply('لم يتم ضبط بنر لهذا السيرفر بعد. استخدم /setbanner أولاً.');
