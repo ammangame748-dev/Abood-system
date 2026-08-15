@@ -1870,11 +1870,11 @@ app.post('/save/:guildId/giveaway', checkAuth, upload.single('giveawayImage'), a
     const targetCh = g.channels.cache.get(channel);
     if (!targetCh) return res.send('الروم غير موجود');
     const imagePath = req.file?.path || '';
-    const imageUrl = imagePath ? `${(process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '')}/uploads/${path.basename(imagePath)}` : '';
+    const imageName = imagePath ? path.basename(imagePath) : '';
     const embed = new EmbedBuilder().setTitle(`قيف اواي: ${prize}`).setDescription(`${description || 'لا يوجد وصف'}\n\nالمدة: <t:${Math.floor(endAt.getTime()/1000)}:R>\nعدد الفائزين: ${winners}\nعدد المشاركين: 0`).setColor(0x1e90ff).setFooter({ text: 'اضغط الزر بالأسفل للدخول' });
-    if (imageUrl) embed.setImage(imageUrl);
+    if (imageName) embed.setImage(`attachment://${imageName}`);
     const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('giveaway_join_pending').setLabel('دخول القيف اواي').setStyle(ButtonStyle.Primary));
-    const files = imagePath && !imageUrl ? [new AttachmentBuilder(imagePath, { name: path.basename(imagePath) })] : [];
+    const files = imagePath ? [new AttachmentBuilder(imagePath, { name: imageName })] : [];
     const giveawayMsg = await targetCh.send({ embeds: [embed], components: [row], files });
     const giveaway = await Giveaway.create({ guildId: g.id, messageId: giveawayMsg.id, channelId: channel, endAt, winnersCount: parseInt(winners, 10), prize, description, imagePath, participants: [] });
     await giveawayMsg.edit({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`giveaway_join:${giveaway._id}`).setLabel('دخول القيف اواي').setStyle(ButtonStyle.Primary))] });
@@ -2350,23 +2350,19 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
 
                 
                 const files = [];
-                const dashboardUrl = process.env.RENDER_EXTERNAL_URL || '';
                 if (attachmentImg) {
-                    try { const r=await axios.get(attachmentImg.url,{responseType:'arraybuffer',timeout:15000}); const n=`suggestion-${Date.now()}-${path.basename(new URL(attachmentImg.url).pathname)||'image.png'}`; files.push(new AttachmentBuilder(Buffer.from(r.data),{name:n})); embed.setImage(`attachment://${n}`); } catch(e) { embed.setImage(attachmentImg.url); }
-                } else if (sugCfg.imagePath && fs.existsSync(sugCfg.imagePath)) {
-                    const imgName = path.basename(sugCfg.imagePath);
-                    if (dashboardUrl) {
-                        embed.setImage(`${dashboardUrl.replace(/\/$/, '')}/uploads/${imgName}`);
-                    } else {
-                        files.push(new AttachmentBuilder(sugCfg.imagePath, { name: imgName }));
-                        const dashboardUrl = process.env.RENDER_EXTERNAL_URL || '';
-                if (dashboardUrl) {
-                    embed.setImage(`${dashboardUrl.replace(/\/$/, '')}/uploads/${imgName}`);
-                } else {
-                    files.push(new AttachmentBuilder(sugCfg.imagePath, { name: imgName }));
-                    embed.setImage(`attachment://${imgName}`);
-                }
+                    try {
+                        const r = await axios.get(attachmentImg.url, { responseType: 'arraybuffer', timeout: 15000 });
+                        const imageName = `suggestion-${Date.now()}-${path.basename(new URL(attachmentImg.url).pathname) || 'image.png'}`;
+                        files.push(new AttachmentBuilder(Buffer.from(r.data), { name: imageName }));
+                        embed.setImage(`attachment://${imageName}`);
+                    } catch (e) {
+                        console.error('[Suggestion Image Error]', e);
                     }
+                } else if (sugCfg.imagePath && fs.existsSync(sugCfg.imagePath)) {
+                    const imageName = path.basename(sugCfg.imagePath);
+                    files.push(new AttachmentBuilder(sugCfg.imagePath, { name: imageName }));
+                    embed.setImage(`attachment://${imageName}`);
                 }
 
 
@@ -2807,9 +2803,25 @@ async function awardAdminImagePoint(reaction, user) {
 client.on('messageReactionAdd', (reaction, user) => {
     awardAdminImagePoint(reaction, user);
     updateSuggestionVotes(reaction, user, true);
-});;
-client.on('messageReactionAdd',async(r,u)=>{if(u.bot||!r.message.guild)return;const m=r.message;await sendLog(m.guild,'messages',new EmbedBuilder().setTitle('إضافة رياكشن').setColor(0x00c853).setURL(m.url).addFields({name:'العضو',value:`<@${u.id}>`,inline:true},{name:'الإيموجي',value:r.emoji.toString(),inline:true},{name:'الرسالة',value:`[فتح الرسالة](${m.url})`}).setTimestamp());});
-client.on('messageReactionRemove',async(r,u)=>{if(u.bot||!r.message.guild)return;const m=r.message;await sendLog(m.guild,'messages',new EmbedBuilder().setTitle('إزالة رياكشن').setColor(0xe63946).setURL(m.url).addFields({name:'العضو',value:`<@${u.id}>`,inline:true},{name:'الإيموجي',value:r.emoji.toString(),inline:true},{name:'الرسالة',value:`[فتح الرسالة](${m.url})`}).setTimestamp());});
+});
+client.on('messageReactionAdd', async (reaction, user) => {
+    if (user.bot || !reaction.message.guild) return;
+    const message = reaction.message;
+    await sendLog(message.guild, 'messages', new EmbedBuilder().setTitle('إضافة رياكشن').setColor(0x00c853).setURL(message.url).addFields(
+        { name: 'العضو', value: `<@${user.id}>`, inline: true },
+        { name: 'الإيموجي', value: reaction.emoji.toString(), inline: true },
+        { name: 'الرسالة', value: `[فتح الرسالة](${message.url})` }
+    ).setTimestamp());
+});
+client.on('messageReactionRemove', async (reaction, user) => {
+    if (user.bot || !reaction.message.guild) return;
+    const message = reaction.message;
+    await sendLog(message.guild, 'messages', new EmbedBuilder().setTitle('إزالة رياكشن').setColor(0xe63946).setURL(message.url).addFields(
+        { name: 'العضو', value: `<@${user.id}>`, inline: true },
+        { name: 'الإيموجي', value: reaction.emoji.toString(), inline: true },
+        { name: 'الرسالة', value: `[فتح الرسالة](${message.url})` }
+    ).setTimestamp());
+});
 
 // ==========================================
 // 11. Audit Log Events (بدون إيموجي في اللوق)
