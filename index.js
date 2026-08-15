@@ -3500,6 +3500,22 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.reply({ content: `تم سحب **${result.deletedCount}** نقطة من ${target} بنجاح.`, ephemeral: true });
             }
 
+            if (interaction.commandName === 'admin-points-add') {
+                const target = interaction.options.getUser('عضو', true);
+                const amount = interaction.options.getInteger('عدد', true);
+                if (amount < 1) return interaction.reply({ content: 'عدد النقاط يجب أن يكون أكبر من صفر.', ephemeral: true });
+                const docs = Array.from({ length: amount }, () => ({
+                    guildId: interaction.guild.id,
+                    messageId: `manual-${interaction.guild.id}-${target.id}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+                    channelId: interaction.channelId || '',
+                    imageAuthorId: target.id,
+                    awardedBy: interaction.user.id,
+                    awardedAt: new Date()
+                }));
+                await AdminPoint.insertMany(docs);
+                return interaction.reply({ content: `تمت إضافة **${amount}** نقطة إلى ${target} بنجاح.`, ephemeral: true });
+            }
+
             if (interaction.commandName === 'admin-points-reset') {
                 const result = await AdminPoint.deleteMany({ guildId: interaction.guild.id });
                 return interaction.reply({ content: `تم تصفير نقاط الإدارة بالكامل. تم حذف **${result.deletedCount}** نقطة.`, ephemeral: true });
@@ -4046,6 +4062,11 @@ async function registerSlashCommands() {
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
             .addUserOption(o => o.setName('عضو').setDescription('العضو المطلوب سحب النقاط منه').setRequired(true))
             .addIntegerOption(o => o.setName('عدد').setDescription('عدد النقاط المراد سحبها').setMinValue(1).setRequired(true)),
+
+        new SlashCommandBuilder().setName('admin-points-add').setDescription('إضافة عدد من نقاط الإدارة لعضو')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+            .addUserOption(o => o.setName('عضو').setDescription('العضو المطلوب إضافة النقاط له').setRequired(true))
+            .addIntegerOption(o => o.setName('عدد').setDescription('عدد النقاط المراد إضافتها').setMinValue(1).setRequired(true)),
 
         new SlashCommandBuilder().setName('admin-points-reset').setDescription('تصفير جميع نقاط الإدارة')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
