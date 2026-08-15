@@ -195,6 +195,8 @@ const SuggestionConfig = mongoose.model('SuggestionConfig', new mongoose.Schema(
 const AdminPointsConfig = mongoose.model('AdminPointsConfig', new mongoose.Schema({
     guildId: { type: String, unique: true },
     channelId: { type: String, default: '' },
+    // القائمة الجديدة، مع إبقاء staffUserId للتوافق مع الإعدادات القديمة.
+    staffUserIds: { type: [String], default: [] },
     staffUserId: { type: String, default: '' }
 }));
 
@@ -1569,21 +1571,21 @@ app.post('/save/:guildId/admin-application', checkAuth, async (req, res) => {
 app.get('/manage/:guildId/admin-points', checkAuth, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    const cfg = await AdminPointsConfig.findOne({ guildId: g.id }) || { channelId: '', staffUserId: '' };
-    const selectedStaff = cfg.staffUserId ? await client.users.fetch(cfg.staffUserId).catch(() => null) : null;
+    const cfg = await AdminPointsConfig.findOne({ guildId: g.id }) || { channelId: '', staffUserIds: [], staffUserId: '' };
+    const staffIds = [...new Set([...(cfg.staffUserIds || []), ...(cfg.staffUserId ? [cfg.staffUserId] : [])])];
     const content = `
     <form method="POST" action="/save/${g.id}/admin-points">
         <div class="card">
             <h3>نقاط الإدارة</h3>
-            <p style="color:var(--text-muted); font-size:13px;">حدد روم الصور وID الشخص الذي يمنح النقطة عند وضع إيموجي على صورة.</p>
+            <p style="color:var(--text-muted); font-size:13px;">حدد روم الصور، ثم اكتب IDs الأشخاص المسموح لهم بمنح النقاط، كل ID في سطر مستقل أو افصل بينهم بفاصلة.</p>
             <label>روم الصور</label>
             <select name="channelId" required>
                 <option value="">-- اختر الروم --</option>
                 ${g.channels.cache.filter(c => c.type === ChannelType.GuildText).map(c => `<option value="${c.id}" ${cfg.channelId === c.id ? 'selected' : ''}># ${c.name}</option>`).join('')}
             </select>
-            <label>ID الشخص الذي يمنح النقطة</label>
-            <input type="text" name="staffUserId" value="${cfg.staffUserId || ''}" placeholder="123456789012345678" required>
-            ${selectedStaff ? `<p style="color:#00c853; font-size:12px;">الشخص الحالي: ${selectedStaff.tag}</p>` : ''}
+            <label>IDs الأشخاص الذين يمنحون النقطة</label>
+            <textarea name="staffUserIds" rows="5" placeholder="123456789012345678\n987654321098765432" required>${staffIds.join('\n')}</textarea>
+            <p style="color:var(--text-muted); font-size:12px;">عدد الأشخاص الحاليين: ${staffIds.length}</p>
             <button class="btn-save" style="margin-top:20px;">حفظ الإعدادات</button>
         </div>
     </form>`;
@@ -1593,10 +1595,10 @@ app.get('/manage/:guildId/admin-points', checkAuth, async (req, res) => {
 app.post('/save/:guildId/admin-points', checkAuth, async (req, res) => {
     const { guildId } = req.params;
     const channelId = String(req.body.channelId || '').trim();
-    const staffUserId = String(req.body.staffUserId || '').trim();
+    const staffUserIds = String(req.body.staffUserIds || '').split(/[\s,،]+/).map(id => id.trim()).filter(Boolean);
     const guild = client.guilds.cache.get(guildId);
-    if (!guild || !channelId || !/^\d{15,25}$/.test(staffUserId)) return res.status(400).send('تأكد من اختيار الروم وكتابة ID صحيح للشخص.');
-    await AdminPointsConfig.findOneAndUpdate({ guildId }, { $set: { channelId, staffUserId } }, { upsert: true, new: true });
+    if (!guild || !channelId || !staffUserIds.length || staffUserIds.some(id => !/^\d{15,25}$/.test(id))) return res.status(400).send('تأكد من اختيار الروم وكتابة IDs صحيحة للأشخاص.');
+    await AdminPointsConfig.findOneAndUpdate({ guildId }, { $set: { channelId, staffUserIds, staffUserId: staffUserIds[0] } }, { upsert: true, new: true });
     res.redirect(`/manage/${guildId}/admin-points`);
 });
 
@@ -2856,7 +2858,8 @@ async function awardAdminImagePoint(reaction, user) {
         const message = reaction.message;
         if (!message || !message.guild || !message.channel || !message.author || !user) return;
         const cfg = await AdminPointsConfig.findOne({ guildId: message.guild.id });
-        if (!cfg || cfg.channelId !== message.channel.id || cfg.staffUserId !== user.id) return;
+        const allowedStaffIds = [...new Set([...(cfg?.staffUserIds || []), ...(cfg?.staffUserId ? [cfg.staffUserId] : [])])];
+        if (!cfg || cfg.channelId !== message.channel.id || !allowedStaffIds.includes(user.id)) return;
         if (!message.attachments?.some(a => (a.contentType || '').toLowerCase().startsWith('image/'))) return;
         if (!message.author || message.author.bot) return;
         await AdminPoint.updateOne(
@@ -3470,7 +3473,8 @@ client.on('interactionCreate', async (interaction) => {
 
             if (interaction.commandName === 'admin-points') {
                 const cfg = await AdminPointsConfig.findOne({ guildId: interaction.guild.id });
-                if (!cfg?.channelId || !cfg?.staffUserId) return interaction.reply({ content: 'لم يتم إعداد نقاط الإدارة من الداشبورد بعد.', ephemeral: true });
+                const configuredStaffIds = [...new Set([...(cfg?.staffUserIds || []), ...(cfg?.staffUserId ? [cfg.staffUserId] : [])])];
+                if (!cfg?.channelId || !configuredStaffIds.length) return interaction.reply({ content: 'لم يتم إعداد نقاط الإدارة من الداشبورد بعد.', ephemeral: true });
                 const points = await AdminPoint.find({ guildId: interaction.guild.id }).sort({ awardedAt: 1 });
                 if (!points.length) return interaction.reply({ content: 'لا توجد نقاط إدارية مسجلة حتى الآن.', ephemeral: true });
                 const totals = new Map();
@@ -3484,6 +3488,21 @@ client.on('interactionCreate', async (interaction) => {
                     .setFooter({ text: `عدد الصور المحتسبة: ${points.length} • الترتيب من الأعلى إلى الأقل` })
                     .setTimestamp();
                 return interaction.reply({ embeds: [embed] });
+            }
+
+            if (interaction.commandName === 'admin-points-remove') {
+                const target = interaction.options.getUser('عضو', true);
+                const amount = interaction.options.getInteger('عدد', true);
+                if (amount < 1) return interaction.reply({ content: 'عدد النقاط يجب أن يكون أكبر من صفر.', ephemeral: true });
+                const targetPoints = await AdminPoint.find({ guildId: interaction.guild.id, imageAuthorId: target.id }).sort({ awardedAt: -1 }).limit(amount);
+                if (!targetPoints.length) return interaction.reply({ content: `لا توجد نقاط مسجلة للعضو ${target}.`, ephemeral: true });
+                const result = await AdminPoint.deleteMany({ _id: { $in: targetPoints.map(point => point._id) } });
+                return interaction.reply({ content: `تم سحب **${result.deletedCount}** نقطة من ${target} بنجاح.`, ephemeral: true });
+            }
+
+            if (interaction.commandName === 'admin-points-reset') {
+                const result = await AdminPoint.deleteMany({ guildId: interaction.guild.id });
+                return interaction.reply({ content: `تم تصفير نقاط الإدارة بالكامل. تم حذف **${result.deletedCount}** نقطة.`, ephemeral: true });
             }
 
             if (interaction.commandName === 'avatar') {
@@ -4021,6 +4040,14 @@ async function registerSlashCommands() {
         new SlashCommandBuilder().setName('serverinfo').setDescription('عرض معلومات عن السيرفر'),
 
         new SlashCommandBuilder().setName('admin-points').setDescription('عرض نقاط الإدارة')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+        new SlashCommandBuilder().setName('admin-points-remove').setDescription('سحب عدد من نقاط الإدارة من عضو')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+            .addUserOption(o => o.setName('عضو').setDescription('العضو المطلوب سحب النقاط منه').setRequired(true))
+            .addIntegerOption(o => o.setName('عدد').setDescription('عدد النقاط المراد سحبها').setMinValue(1).setRequired(true)),
+
+        new SlashCommandBuilder().setName('admin-points-reset').setDescription('تصفير جميع نقاط الإدارة')
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
         new SlashCommandBuilder().setName('avatar').setDescription('عرض صورة عضو')
