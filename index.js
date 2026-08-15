@@ -3471,8 +3471,14 @@ client.on('interactionCreate', async (interaction) => {
                 if (!points.length) return interaction.reply({ content: 'لا توجد نقاط إدارية مسجلة حتى الآن.', ephemeral: true });
                 const totals = new Map();
                 for (const point of points) totals.set(point.imageAuthorId, (totals.get(point.imageAuthorId) || 0) + 1);
-                const description = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([id, count], i) => `${i + 1}. <@${id}> ${count}`).join('\\n');
-                const embed = new EmbedBuilder().setTitle('نقاط الإدارة').setDescription(description).setColor(0x1e90ff).setFooter({ text: `عدد الصور المحتسبة: ${points.length}` }).setTimestamp();
+                const ranked = [...totals.entries()].sort((a, b) => b[1] - a[1]);
+                const description = ranked.map(([id, count], i) => `**${i + 1}.** <@${id}> — **${count} نقطة**`).join('\n');
+                const embed = new EmbedBuilder()
+                    .setTitle('نقاط الإدارة')
+                    .setDescription(description)
+                    .setColor(0x1e90ff)
+                    .setFooter({ text: `عدد الصور المحتسبة: ${points.length} • الترتيب من الأعلى إلى الأقل` })
+                    .setTimestamp();
                 return interaction.reply({ embeds: [embed] });
             }
 
