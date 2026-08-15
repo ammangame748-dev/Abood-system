@@ -2854,7 +2854,7 @@ async function awardAdminImagePoint(reaction, user) {
         if (user.bot) return;
         if (reaction.partial) await reaction.fetch().catch(() => {});
         const message = reaction.message;
-        if (!message.guild) return;
+        if (!message || !message.guild || !message.channel || !message.author || !user) return;
         const cfg = await AdminPointsConfig.findOne({ guildId: message.guild.id });
         if (!cfg || cfg.channelId !== message.channel.id || cfg.staffUserId !== user.id) return;
         if (!message.attachments?.some(a => (a.contentType || '').toLowerCase().startsWith('image/'))) return;
@@ -2872,7 +2872,7 @@ client.on('messageReactionAdd', (reaction, user) => {
     updateSuggestionVotes(reaction, user, true);
 });
 client.on('messageReactionAdd', async (reaction, user) => {
-    if (user.bot || !reaction.message.guild) return;
+    if (user?.bot || !reaction?.message?.guild || !reaction.message.channel) return;
     const message = reaction.message;
     await sendLog(message.guild, 'messages', new EmbedBuilder().setTitle('إضافة رياكشن').setColor(0x00c853).setURL(message.url).addFields(
         { name: 'العضو', value: `<@${user.id}>`, inline: true },
@@ -2881,7 +2881,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
     ).setTimestamp());
 });
 client.on('messageReactionRemove', async (reaction, user) => {
-    if (user.bot || !reaction.message.guild) return;
+    if (user?.bot || !reaction?.message?.guild || !reaction.message.channel) return;
     const message = reaction.message;
     await sendLog(message.guild, 'messages', new EmbedBuilder().setTitle('إزالة رياكشن').setColor(0xe63946).setURL(message.url).addFields(
         { name: 'العضو', value: `<@${user.id}>`, inline: true },
@@ -2895,7 +2895,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
 // ==========================================
 
 client.on('messageDelete', async (message) => {
-    if (!message.guild || !message.author) return;
+    if (!message || !message.guild || !message.channel || !message.author) return;
     const logs = await message.guild.fetchAuditLogs({ type: AuditLogEvent.MessageDelete }).catch(() => {});
     const executor = logs?.entries.first()?.executor;
 
@@ -2916,8 +2916,11 @@ client.on('messageDelete', async (message) => {
 });
 
 client.on('messageUpdate', async (oldMsg, newMsg) => {
-    if (!oldMsg.guild || oldMsg.author?.bot) return;
-    if (oldMsg.content === newMsg.content) return;
+    try {
+        if (oldMsg?.partial) await oldMsg.fetch().catch(() => {});
+        if (newMsg?.partial) await newMsg.fetch().catch(() => {});
+        if (!oldMsg || !newMsg || !oldMsg.guild || !oldMsg.channel || !newMsg.channel || !oldMsg.author || oldMsg.author.bot) return;
+        if (oldMsg.content === newMsg.content) return;
 
     const embed = new EmbedBuilder()
         .setTitle('رسالة معدلة')
@@ -2928,9 +2931,10 @@ client.on('messageUpdate', async (oldMsg, newMsg) => {
             { name: 'قبل', value: oldMsg.content || '(فارغ)' },
             { name: 'بعد', value: newMsg.content || '(فارغ)' }
         )
-        .setTimestamp();
-
-    await sendLog(oldMsg.guild, 'messages', embed);
+        .setTimestamp();        await sendLog(oldMsg.guild, 'messages', embed);
+    } catch (err) {
+        console.error('[Message Update Log Error]', err);
+    }
 });
 
 client.on('guildMemberAdd', async (member) => {
