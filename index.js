@@ -179,6 +179,8 @@ const Giveaway = mongoose.model('Giveaway', new mongoose.Schema({
     winnersCount: Number,
     prize: String,
     description: String,
+    imagePath: String,
+    participants: { type: [String], default: [] },
     ended: { type: Boolean, default: false }
 }));
 
@@ -1839,56 +1841,26 @@ app.get('/manage/:guildId/giveaway', checkAuth, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
     const activeGiveaways = await Giveaway.find({ guildId: g.id, ended: false });
-
     const content = `
     <div class="card">
-        <h3>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polyline points="20,12 20,22 4,22 4,12"/><rect x="2" y="7" width="20" height="5"/></svg>
-            إنشاء قيف اواي جديد
-        </h3>
-        <form method="POST" action="/save/${g.id}/giveaway">
+        <h3>إنشاء قيف اواي جديد</h3>
+        <form method="POST" action="/save/${g.id}/giveaway" enctype="multipart/form-data">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                <div>
-                    <label>الجائزة</label>
-                    <input name="prize" placeholder="اسم الجائزة" required>
-                </div>
-                <div>
-                    <label>المدة (مثال: 1d أو 1h أو 30m)</label>
-                    <input name="duration" placeholder="1h" required>
-                </div>
-                <div>
-                    <label>عدد الفائزين</label>
-                    <input type="number" name="winners" value="1" min="1">
-                </div>
-                <div>
-                    <label>قناة الإرسال</label>
-                    <select name="channel">
-                        ${g.channels.cache.filter(c => c.type === 0).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}
-                    </select>
-                </div>
+                <div><label>الجائزة</label><input name="prize" placeholder="اسم الجائزة" required></div>
+                <div><label>المدة (مثال: 1d أو 1h أو 30m)</label><input name="duration" placeholder="1h" required></div>
+                <div><label>عدد الفائزين</label><input type="number" name="winners" value="1" min="1" required></div>
+                <div><label>قناة الإرسال</label><select name="channel" required>${g.channels.cache.filter(c => c.type === ChannelType.GuildText).map(c => `<option value="${c.id}"># ${c.name}</option>`).join('')}</select></div>
             </div>
-            <label>الوصف (اختياري)</label>
-            <textarea name="description" placeholder="وصف الجائزة..."></textarea>
+            <label>الوصف (اختياري)</label><textarea name="description" placeholder="وصف الجائزة..."></textarea>
+            <label>صورة القيف اواي (اختياري)</label><input type="file" name="giveawayImage" accept="image/*">
             <button class="btn-save btn-green" style="margin-top:16px;">تشغيل القيف اواي</button>
         </form>
     </div>
-    ${activeGiveaways.length > 0 ? `
-    <div class="card">
-        <h3>القيف اوايات النشطة</h3>
-        ${activeGiveaways.map(gw => `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:14px; background:rgba(0,0,0,0.2); border-radius:10px; margin-bottom:10px; border:1px solid var(--border);">
-            <div>
-                <span style="color:white; font-weight:700;">${gw.prize}</span>
-                <span class="tag tag-blue" style="margin-right:10px;">${gw.winnersCount} فائز</span>
-            </div>
-            <span style="color:var(--text-muted); font-size:13px;">ينتهي <t:${Math.floor(gw.endAt / 1000)}:R></span>
-        </div>`).join('')}
-    </div>` : ''}`;
-
+    ${activeGiveaways.length ? `<div class="card"><h3>القيف اوايات النشطة</h3>${activeGiveaways.map(gw => `<div style="display:flex;justify-content:space-between;padding:14px;background:rgba(0,0,0,.2);border-radius:10px;margin-bottom:10px"><span style="color:white;font-weight:700">${gw.prize} <span class="tag tag-blue">${gw.participants?.length || 0} مشارك / ${gw.winnersCount} فائز</span></span><span style="color:var(--text-muted)">ينتهي <t:${Math.floor(new Date(gw.endAt).getTime()/1000)}:R></span></div>`).join('')}</div>` : ''}`;
     res.send(ui(g, 'giveaway', content));
 });
 
-app.post('/save/:guildId/giveaway', checkAuth, async (req, res) => {
+app.post('/save/:guildId/giveaway', checkAuth, upload.single('giveawayImage'), async (req, res) => {
     const { prize, duration, winners, channel, description } = req.body;
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.status(404).send('السيرفر غير موجود');
@@ -1897,18 +1869,23 @@ app.post('/save/:guildId/giveaway', checkAuth, async (req, res) => {
     const endAt = new Date(Date.now() + timeMs);
     const targetCh = g.channels.cache.get(channel);
     if (!targetCh) return res.send('الروم غير موجود');
-
-    const embed = new EmbedBuilder()
-        .setTitle(`قيف اواي: ${prize}`)
-        .setDescription(`${description || 'لا يوجد وصف'}\n\nينتهي: <t:${Math.floor(endAt / 1000)}:R>\nعدد الفائزين: ${winners}`)
-        .setColor(0x1e90ff)
-        .setFooter({ text: 'اضغط على رد فعل للاشتراك' });
-
-    const giveawayMsg = await targetCh.send({ embeds: [embed] });
-    await giveawayMsg.react('🎉');
-    await Giveaway.create({ guildId: g.id, messageId: giveawayMsg.id, channelId: channel, endAt, winnersCount: parseInt(winners), prize, description });
+    const imagePath = req.file?.path || '';
+    const imageUrl = imagePath ? `${(process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '')}/uploads/${path.basename(imagePath)}` : '';
+    const embed = new EmbedBuilder().setTitle(`قيف اواي: ${prize}`).setDescription(`${description || 'لا يوجد وصف'}\n\nالمدة: <t:${Math.floor(endAt.getTime()/1000)}:R>\nعدد الفائزين: ${winners}\nعدد المشاركين: 0`).setColor(0x1e90ff).setFooter({ text: 'اضغط الزر بالأسفل للدخول' });
+    if (imageUrl) embed.setImage(imageUrl);
+    const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('giveaway_join_pending').setLabel('دخول القيف اواي').setStyle(ButtonStyle.Primary));
+    const files = imagePath && !imageUrl ? [new AttachmentBuilder(imagePath, { name: path.basename(imagePath) })] : [];
+    const giveawayMsg = await targetCh.send({ embeds: [embed], components: [row], files });
+    const giveaway = await Giveaway.create({ guildId: g.id, messageId: giveawayMsg.id, channelId: channel, endAt, winnersCount: parseInt(winners, 10), prize, description, imagePath, participants: [] });
+    await giveawayMsg.edit({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`giveaway_join:${giveaway._id}`).setLabel('دخول القيف اواي').setStyle(ButtonStyle.Primary))] });
     res.redirect(`/manage/${g.id}/giveaway`);
 });
+
+async function refreshGiveawayMessage(giveaway, message) {
+    const participantMentions = giveaway.participants.length ? giveaway.participants.slice(-30).map(id => `<@${id}>`).join('، ') : 'لا يوجد مشاركون حتى الآن';
+    const embed = EmbedBuilder.from(message.embeds[0]).setDescription(`${giveaway.description || 'لا يوجد وصف'}\n\nالمدة المتبقية: <t:${Math.floor(new Date(giveaway.endAt).getTime()/1000)}:R>\nعدد الفائزين: ${giveaway.winnersCount}\nعدد المشاركين: ${giveaway.participants.length}`).setFields({ name: 'المشاركون', value: participantMentions.slice(0, 1024) });
+    await message.edit({ embeds: [embed] }).catch(() => {});
+}
 
 // --- [ Tickets ] ---
 app.get('/manage/:guildId/tickets', checkAuth, async (req, res) => {
@@ -2802,7 +2779,8 @@ async function updateSuggestionVotes(reaction, user, isAdd) {
             { name: getEmojiDisplay(message.guild, sugCfg.emoji1), value: `${suggestion.votes1.length}`, inline: true },
             { name: getEmojiDisplay(message.guild, sugCfg.emoji2), value: `${suggestion.votes2.length}`, inline: true }
         );
-        await message.edit({ embeds: [embed], attachments: [] }).catch(() => {});
+        // لا نحذف المرفق؛ صورة الاقتراح يجب أن تبقى موجودة بعد كل تحديث للتصويت.
+        await message.edit({ embeds: [embed] }).catch(() => {});
     } catch (err) {
         console.error('[Suggestion Vote Error]', err);
     }
@@ -2829,8 +2807,7 @@ async function awardAdminImagePoint(reaction, user) {
 client.on('messageReactionAdd', (reaction, user) => {
     awardAdminImagePoint(reaction, user);
     updateSuggestionVotes(reaction, user, true);
-});
-client.on('messageReactionAdd', (reaction, user) => updateSuggestionVotes(reaction, user, true));
+});;
 client.on('messageReactionAdd',async(r,u)=>{if(u.bot||!r.message.guild)return;const m=r.message;await sendLog(m.guild,'messages',new EmbedBuilder().setTitle('إضافة رياكشن').setColor(0x00c853).setURL(m.url).addFields({name:'العضو',value:`<@${u.id}>`,inline:true},{name:'الإيموجي',value:r.emoji.toString(),inline:true},{name:'الرسالة',value:`[فتح الرسالة](${m.url})`}).setTimestamp());});
 client.on('messageReactionRemove',async(r,u)=>{if(u.bot||!r.message.guild)return;const m=r.message;await sendLog(m.guild,'messages',new EmbedBuilder().setTitle('إزالة رياكشن').setColor(0xe63946).setURL(m.url).addFields({name:'العضو',value:`<@${u.id}>`,inline:true},{name:'الإيموجي',value:r.emoji.toString(),inline:true},{name:'الرسالة',value:`[فتح الرسالة](${m.url})`}).setTimestamp());});
 
@@ -3086,6 +3063,22 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 client.on('interactionCreate', async (interaction) => {
     try {
         if (!interaction.guild) return;
+
+        // --- [ Giveaway Join Button ] ---
+        if (interaction.isButton() && interaction.customId.startsWith('giveaway_join:')) {
+            const giveawayId = interaction.customId.split(':')[1];
+            const giveaway = await Giveaway.findOne({ _id: giveawayId, guildId: interaction.guild.id, ended: false });
+            if (!giveaway) return interaction.reply({ content: 'هذا القيف اواي انتهى أو لم يعد موجودًا.', ephemeral: true });
+            if (new Date(giveaway.endAt).getTime() <= Date.now()) return interaction.reply({ content: 'انتهت مدة القيف اواي.', ephemeral: true });
+            const alreadyJoined = giveaway.participants.includes(interaction.user.id);
+            if (!alreadyJoined) {
+                giveaway.participants.push(interaction.user.id);
+                await giveaway.save();
+                await refreshGiveawayMessage(giveaway, interaction.message);
+                return interaction.reply({ content: 'تم تسجيل دخولك في القيف اواي بنجاح.', ephemeral: true });
+            }
+            return interaction.reply({ content: 'أنت داخل القيف اواي مسبقًا.', ephemeral: true });
+        }
 
         // --- [ Admin Application Button ] ---
         if (interaction.isButton() && interaction.customId === 'admin_application_start') {
@@ -3399,7 +3392,7 @@ client.on('interactionCreate', async (interaction) => {
                 if (!points.length) return interaction.reply({ content: 'لا توجد نقاط إدارية مسجلة حتى الآن.', ephemeral: true });
                 const totals = new Map();
                 for (const point of points) totals.set(point.imageAuthorId, (totals.get(point.imageAuthorId) || 0) + 1);
-                const description = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([id, count], i) => `${i + 1}. <@${id}> — **${count} نقطة إدارية**`).join('\\n');
+                const description = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([id, count], i) => `${i + 1}. <@${id}> ${count}`).join('\\n');
                 const embed = new EmbedBuilder().setTitle('نقاط الإدارة').setDescription(description).setColor(0x1e90ff).setFooter({ text: `عدد الصور المحتسبة: ${points.length}` }).setTimestamp();
                 return interaction.reply({ embeds: [embed] });
             }
