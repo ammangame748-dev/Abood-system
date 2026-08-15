@@ -379,6 +379,20 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+function publicUploadUrl(filePath) {
+    const base = (process.env.RENDER_EXTERNAL_URL || process.env.BASE_URL || '').replace(/\/$/, '');
+    return base ? `${base}/uploads/${encodeURIComponent(path.basename(filePath))}` : null;
+}
+
+async function downloadImageToUploads(url, prefix = 'image') {
+    const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000 });
+    const contentType = String(response.headers['content-type'] || '').toLowerCase();
+    const extension = contentType.includes('png') ? '.png' : contentType.includes('webp') ? '.webp' : contentType.includes('gif') ? '.gif' : '.jpg';
+    const filePath = path.join('./uploads', `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extension}`);
+    fs.writeFileSync(filePath, Buffer.from(response.data));
+    return filePath;
+}
+
 // ==========================================
 // 7. Auth Setup
 // ==========================================
@@ -1872,20 +1886,67 @@ app.post('/save/:guildId/giveaway', checkAuth, upload.single('giveawayImage'), a
     const imagePath = req.file?.path || '';
     const imageName = imagePath ? path.basename(imagePath) : '';
     const embed = new EmbedBuilder().setTitle(`قيف اواي: ${prize}`).setDescription(`${description || 'لا يوجد وصف'}\n\nالمدة: <t:${Math.floor(endAt.getTime()/1000)}:R>\nعدد الفائزين: ${winners}\nعدد المشاركين: 0`).setColor(0x1e90ff).setFooter({ text: 'اضغط الزر بالأسفل للدخول' });
-    if (imageName) embed.setImage(`attachment://${imageName}`);
+    const stableGiveawayUrl = imagePath ? publicUploadUrl(imagePath) : null;
+    if (stableGiveawayUrl) embed.setImage(stableGiveawayUrl);
+    else if (imageName) embed.setImage(`attachment://${imageName}`);
     const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('giveaway_join_pending').setLabel('دخول القيف اواي').setStyle(ButtonStyle.Primary));
-    const files = imagePath ? [new AttachmentBuilder(imagePath, { name: imageName })] : [];
+    const files = imagePath && !stableGiveawayUrl ? [new AttachmentBuilder(imagePath, { name: imageName })] : [];
     const giveawayMsg = await targetCh.send({ embeds: [embed], components: [row], files });
     const giveaway = await Giveaway.create({ guildId: g.id, messageId: giveawayMsg.id, channelId: channel, endAt, winnersCount: parseInt(winners, 10), prize, description, imagePath, participants: [] });
-    await giveawayMsg.edit({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`giveaway_join:${giveaway._id}`).setLabel('دخول القيف اواي').setStyle(ButtonStyle.Primary))] });
+    await giveawayMsg.edit({ components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`giveaway_join:${giveaway._id}`).setLabel('دخول القيف اواي').setStyle(ButtonStyle.Primary))], attachments: keepMessageAttachments(giveawayMsg) });
     res.redirect(`/manage/${g.id}/giveaway`);
 });
 
+function keepMessageAttachments(message) {
+    return [...(message.attachments?.values?.() || [])].map(file => ({ id: file.id, filename: file.name }));
+}
+
 async function refreshGiveawayMessage(giveaway, message) {
     const participantMentions = giveaway.participants.length ? giveaway.participants.slice(-30).map(id => `<@${id}>`).join('، ') : 'لا يوجد مشاركون حتى الآن';
-    const embed = EmbedBuilder.from(message.embeds[0]).setDescription(`${giveaway.description || 'لا يوجد وصف'}\n\nالمدة المتبقية: <t:${Math.floor(new Date(giveaway.endAt).getTime()/1000)}:R>\nعدد الفائزين: ${giveaway.winnersCount}\nعدد المشاركين: ${giveaway.participants.length}`).setFields({ name: 'المشاركون', value: participantMentions.slice(0, 1024) });
-    await message.edit({ embeds: [embed] }).catch(() => {});
+    const embed = EmbedBuilder.from(message.embeds[0])
+        .setDescription(`${giveaway.description || 'لا يوجد وصف'}\n\nالمدة المتبقية: <t:${Math.floor(new Date(giveaway.endAt).getTime()/1000)}:R>\nعدد الفائزين: ${giveaway.winnersCount}\nعدد المشاركين: ${giveaway.participants.length}`)
+        .setFields({ name: 'المشاركون', value: participantMentions.slice(0, 1024) });
+    await message.edit({ embeds: [embed], attachments: keepMessageAttachments(message) }).catch(() => {});
 }
+
+async function finishGiveaway(giveaway) {
+    // القفل الذري يمنع اختيار الفائزين مرتين إذا اشتغل أكثر من فحص في نفس اللحظة.
+    const locked = await Giveaway.findOneAndUpdate(
+        { _id: giveaway._id, ended: false, endAt: { $lte: new Date() } },
+        { $set: { ended: true } },
+        { new: true }
+    );
+    if (!locked) return;
+
+    const guild = client.guilds.cache.get(locked.guildId);
+    const channel = guild?.channels.cache.get(locked.channelId);
+    if (!channel) return;
+    const message = await channel.messages.fetch(locked.messageId).catch(() => null);
+    if (!message) return;
+
+    const pool = [...new Set(locked.participants || [])];
+    const shuffled = pool.sort(() => Math.random() - 0.5);
+    const winnerIds = shuffled.slice(0, Math.min(locked.winnersCount, shuffled.length));
+    const winnersText = winnerIds.length ? winnerIds.map(id => `<@${id}>`).join('، ') : 'لا يوجد فائزون لعدم وجود مشاركين';
+    const participantsText = pool.length ? pool.slice(0, 30).map(id => `<@${id}>`).join('، ').slice(0, 1024) : 'لا يوجد مشاركون';
+    const finishedEmbed = EmbedBuilder.from(message.embeds[0])
+        .setColor(0x00c853)
+        .setDescription(`${locked.description || 'لا يوجد وصف'}\n\nانتهى القيف اواي في <t:${Math.floor(new Date(locked.endAt).getTime()/1000)}:F>\nعدد الفائزين المطلوب: ${locked.winnersCount}\nعدد المشاركين: ${pool.length}`)
+        .setFields(
+            { name: 'المشاركون', value: participantsText },
+            { name: 'الفائزون', value: winnersText }
+        )
+        .setFooter({ text: 'انتهى القيف اواي' });
+    await message.edit({ embeds: [finishedEmbed], components: [], attachments: keepMessageAttachments(message) }).catch(() => {});
+    await channel.send({ content: winnerIds.length ? `مبروك للفائزين في قيف اواي **${locked.prize}**: ${winnersText}` : `انتهى قيف اواي **${locked.prize}** بدون فائزين.` }).catch(() => {});
+}
+
+async function checkGiveaways() {
+    const expired = await Giveaway.find({ ended: false, endAt: { $lte: new Date() } }).limit(25);
+    for (const giveaway of expired) await finishGiveaway(giveaway).catch(err => console.error('[Giveaway Finish Error]', err));
+}
+
+setInterval(checkGiveaways, 1000);
 
 // --- [ Tickets ] ---
 app.get('/manage/:guildId/tickets', checkAuth, async (req, res) => {
@@ -2350,19 +2411,25 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
 
                 
                 const files = [];
+                let suggestionImagePath = sugCfg.imagePath && fs.existsSync(sugCfg.imagePath) ? sugCfg.imagePath : null;
                 if (attachmentImg) {
                     try {
-                        const r = await axios.get(attachmentImg.url, { responseType: 'arraybuffer', timeout: 15000 });
-                        const imageName = `suggestion-${Date.now()}-${path.basename(new URL(attachmentImg.url).pathname) || 'image.png'}`;
-                        files.push(new AttachmentBuilder(Buffer.from(r.data), { name: imageName }));
-                        embed.setImage(`attachment://${imageName}`);
+                        suggestionImagePath = await downloadImageToUploads(attachmentImg.url, 'suggestion');
                     } catch (e) {
                         console.error('[Suggestion Image Error]', e);
                     }
-                } else if (sugCfg.imagePath && fs.existsSync(sugCfg.imagePath)) {
-                    const imageName = path.basename(sugCfg.imagePath);
-                    files.push(new AttachmentBuilder(sugCfg.imagePath, { name: imageName }));
-                    embed.setImage(`attachment://${imageName}`);
+                }
+                if (suggestionImagePath) {
+                    const stableUrl = publicUploadUrl(suggestionImagePath);
+                    if (stableUrl) {
+                        // الصورة محفوظة داخل uploads وتظهر كرابط داخلي دائم، وليس كرابط يدخله المستخدم.
+                        embed.setImage(stableUrl);
+                    } else {
+                        // وضع احتياطي عند عدم ضبط رابط الاستضافة: نرسل المرفق مرة واحدة ونحتفظ بمعرّفه عند التحديث.
+                        const imageName = path.basename(suggestionImagePath);
+                        files.push(new AttachmentBuilder(suggestionImagePath, { name: imageName }));
+                        embed.setImage(`attachment://${imageName}`);
+                    }
                 }
 
 
@@ -2776,7 +2843,7 @@ async function updateSuggestionVotes(reaction, user, isAdd) {
             { name: getEmojiDisplay(message.guild, sugCfg.emoji2), value: `${suggestion.votes2.length}`, inline: true }
         );
         // لا نحذف المرفق؛ صورة الاقتراح يجب أن تبقى موجودة بعد كل تحديث للتصويت.
-        await message.edit({ embeds: [embed] }).catch(() => {});
+        await message.edit({ embeds: [embed], attachments: keepMessageAttachments(message) }).catch(() => {});
     } catch (err) {
         console.error('[Suggestion Vote Error]', err);
     }
