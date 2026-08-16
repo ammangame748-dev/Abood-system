@@ -365,6 +365,7 @@ function parseDuration(input) {
     return Number.isFinite(ms)&&ms>=5000&&ms<=2419200000?{milliseconds:ms,text:m[0]}:null;
 }
 
+const AI_BUILD_VERSION = '2026-413-debug-1';
 const aiCooldowns = new Map();
 const aiHistories = new Map();
 const aiResponseContexts = new Map();
@@ -431,7 +432,15 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
         .filter(item => ['system', 'user', 'assistant'].includes(item.role) && item.content.trim())
         .slice(-historyLimit);
     const cleanContent = String(content).replace(/\s+/g, ' ').trim().slice(0, 4000);
-    const webSources = useWeb ? await searchWeb(cleanContent) : [];
+    let webSources = [];
+    if (useWeb) {
+        try {
+            webSources = await searchWeb(cleanContent);
+            console.log(`[AI DEBUG ${AI_BUILD_VERSION}] searchWeb ok queryChars=${cleanContent.length} results=${webSources.length}`);
+        } catch (searchError) {
+            console.error(`[AI DEBUG ${AI_BUILD_VERSION}] searchWeb failed status=${searchError?.response?.status || 'unknown'} message=${searchError?.response?.data?.error?.message || searchError.message}`);
+        }
+    }
     const sourceContext = webSources.length ? `\nمصادر الويب الحالية:\n${webSources.map((s, i) => `${i + 1}. ${s.title} - ${s.url}`).join('\n')}` : '';
     const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, useWeb ? 500 : 1200);
     const currentDate = new Intl.DateTimeFormat('ar', { dateStyle: 'full', timeZone: 'Asia/Amman' }).format(new Date());
@@ -440,12 +449,14 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
         ...history,
         { role: 'user', content: cleanContent }
     ];
-    const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+    const payload = {
         model: config.model || 'llama-3.1-8b-instant',
         messages,
         temperature: useWeb ? 0.25 : 0.45,
         max_completion_tokens: Number(config.maxOutputTokens) || 220
-    }, {
+    };
+    console.log(`[AI DEBUG ${AI_BUILD_VERSION}] groq request model=${payload.model} useWeb=${useWeb} questionChars=${cleanContent.length} promptChars=${JSON.stringify(payload).length} history=${history.length}`);
+    const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', payload, {
         timeout: 30000,
         headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }
     });
@@ -2851,7 +2862,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
     } catch (err) {
         const status = err?.response?.status;
         const detail = err?.response?.data?.error?.message || err?.response?.data?.error || err.message || err;
-        console.error('[AI Error]', status || 'unknown', detail);
+        console.error(`[AI DEBUG ${AI_BUILD_VERSION}] AI Error status=${status || 'unknown'} detail=${detail}`);
         if (status === 413) msg.reply({ content: 'سؤال البحث طويل جدًا. اختصره وجرب مرة ثانية.', allowedMentions: { repliedUser: false } }).catch(() => {});
         else if (status === 429) msg.reply({ content: 'الخدمة مشغولة حاليًا، جرّب بعد قليل.', allowedMentions: { repliedUser: false } }).catch(() => {});
         else if (err.message === 'GROQ_API_KEY is missing') msg.reply({ content: 'لم يتم ضبط مفتاح AI في متغيرات البيئة.', allowedMentions: { repliedUser: false } }).catch(() => {});
