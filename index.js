@@ -56,7 +56,8 @@ const AIConfig = mongoose.model('AIConfig', new mongoose.Schema({
     cooldownMs: { type: Number, default: 8000, min: 1000, max: 300000 },
     maxHistory: { type: Number, default: 4, min: 0, max: 12 },
     maxOutputTokens: { type: Number, default: 220, min: 40, max: 600 },
-    systemPrompt: { type: String, default: 'أنت مساعد ودود داخل سيرفر Discord. أجب بالعربية غالبًا وباختصار وبدون إطالة.' }
+    memoryEnabled: { type: Boolean, default: true },
+    systemPrompt: { type: String, default: 'أنت مساعد ذكي وودود داخل سيرفر Discord. أجب بالعربية السليمة غالبًا، راجع الإملاء والنحو قبل الرد، افهم سياق كلام المستخدم، ولا تخترع معلومات. كن واضحًا ومختصرًا ونسّق الرد على شكل فقرات قصيرة.' }
 }));
 
 const AIUsage = mongoose.model('AIUsage', new mongoose.Schema({
@@ -64,6 +65,14 @@ const AIUsage = mongoose.model('AIUsage', new mongoose.Schema({
     dateKey: { type: String, index: true },
     count: { type: Number, default: 0 }
 }, { timestamps: true }));
+
+const AIMemory = mongoose.model('AIMemory', new mongoose.Schema({
+    guildId: { type: String, required: true, index: true },
+    userId: { type: String, required: true, index: true },
+    messages: { type: [{ role: String, content: String }], default: [] },
+    updatedAt: { type: Date, default: Date.now }
+}));
+AIMemory.schema.index({ guildId: 1, userId: 1 }, { unique: true });
 
 const KickConfig = mongoose.model('KickConfig', new mongoose.Schema({
     guildId: String,
@@ -380,17 +389,19 @@ async function reserveAIRequest(guildId, dailyLimit) {
 
 async function askGroq({ guildId, userId, content, config }) {
     if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is missing');
-    const key = aiHistoryKey(guildId, userId);
-    const history = aiHistories.get(key) || [];
+    const memory = config.memoryEnabled ? await AIMemory.findOne({ guildId, userId }) : null;
+    const history = memory?.messages || [];
+    const cleanContent = String(content).replace(/\s+/g, ' ').trim().slice(0, 1200);
+    const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, 1200);
     const messages = [
-        { role: 'system', content: String(config.systemPrompt || 'أجب بالعربية وباختصار.') .slice(0, 1200) },
+        { role: 'system', content: `${systemPrompt}\nتذكّر أن تراجع الإملاء والنحو، وأن تستفيد من معلومات المستخدم السابقة دون كشفها لغيره.` },
         ...history.slice(-(Number(config.maxHistory) || 0)),
-        { role: 'user', content: String(content).slice(0, 1200) }
+        { role: 'user', content: cleanContent }
     ];
     const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
         model: config.model || 'llama-3.1-8b-instant',
         messages,
-        temperature: 0.65,
+        temperature: 0.45,
         max_tokens: Number(config.maxOutputTokens) || 220
     }, {
         timeout: 30000,
@@ -398,8 +409,14 @@ async function askGroq({ guildId, userId, content, config }) {
     });
     const answer = String(response.data?.choices?.[0]?.message?.content || '').trim();
     if (!answer) throw new Error('Groq returned an empty response');
-    const nextHistory = [...history, { role: 'user', content: String(content).slice(0, 1200) }, { role: 'assistant', content: answer.slice(0, 1500) }];
-    aiHistories.set(key, nextHistory.slice(-Math.max(0, (Number(config.maxHistory) || 0) * 2)));
+    if (config.memoryEnabled) {
+        const nextMessages = [...history, { role: 'user', content: cleanContent }, { role: 'assistant', content: answer.slice(0, 1500) }];
+        await AIMemory.findOneAndUpdate(
+            { guildId, userId },
+            { $set: { messages: nextMessages.slice(-Math.max(0, (Number(config.maxHistory) || 0) * 2)), updatedAt: new Date() } },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+    }
     return answer.slice(0, 1900);
 }
 
@@ -1394,7 +1411,7 @@ app.post('/save/:guildId/generalcmds', checkAuth, async (req, res) => {
 app.get('/manage/:guildId/ai', checkAuth, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    const defaults = { enabled: false, channelId: '', model: 'llama-3.1-8b-instant', dailyLimit: 4000, cooldownMs: 8000, maxHistory: 4, maxOutputTokens: 220, systemPrompt: 'أنت مساعد ودود داخل سيرفر Discord. أجب بالعربية غالبًا وباختصار وبدون إطالة.' };
+    const defaults = { enabled: false, channelId: '', model: 'llama-3.1-8b-instant', dailyLimit: 4000, cooldownMs: 8000, maxHistory: 4, maxOutputTokens: 220, memoryEnabled: true, systemPrompt: 'أنت مساعد ذكي وودود داخل سيرفر Discord. أجب بالعربية السليمة غالبًا وباختصار وبدون اختلاق معلومات.' };
     const saved = await AIConfig.findOne({ guildId: g.id });
     const cfg = { ...defaults, ...(saved?.toObject?.() || saved || {}) };
     const usage = await AIUsage.findOne({ guildId: g.id, dateKey: aiDateKey() });
@@ -1408,7 +1425,8 @@ app.get('/manage/:guildId/ai', checkAuth, async (req, res) => {
                 ${process.env.GROQ_API_KEY ? 'مفتاح Groq موجود في متغيرات البيئة.' : 'لم يتم العثور على GROQ_API_KEY في متغيرات البيئة.'}
             </div>
             <form method="POST" action="/save/${g.id}/ai">
-                <label style="display:flex; align-items:center; gap:8px; margin-bottom:18px;"><input type="checkbox" name="enabled" ${cfg.enabled ? 'checked' : ''} style="width:18px; height:18px;"> تفعيل دردشة AI</label>
+                <label style="display:flex; align-items:center; gap:8px; margin-bottom:12px;"><input type="checkbox" name="enabled" ${cfg.enabled ? 'checked' : ''} style="width:18px; height:18px;"> تفعيل دردشة AI</label>
+                <label style="display:flex; align-items:center; gap:8px; margin-bottom:18px;"><input type="checkbox" name="memoryEnabled" ${cfg.memoryEnabled !== false ? 'checked' : ''} style="width:18px; height:18px;"> تفعيل الذاكرة الدائمة لكل مستخدم</label>
                 <label>روم الدردشة</label>
                 <select name="channelId" required><option value="">اختر روم الدردشة</option>${options}</select>
                 <label>النموذج</label>
@@ -1443,7 +1461,7 @@ app.post('/save/:guildId/ai', checkAuth, async (req, res) => {
     const allowedModels = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile'];
     const model = allowedModels.includes(req.body.model) ? req.body.model : 'llama-3.1-8b-instant';
     if (!guild.channels.cache.has(channelId)) return res.status(400).send('اختر رومًا صحيحة للدردشة.');
-    await AIConfig.findOneAndUpdate({ guildId }, { $set: { enabled: req.body.enabled === 'on', channelId, model, dailyLimit, cooldownMs, maxHistory, maxOutputTokens, systemPrompt: String(req.body.systemPrompt || '').trim().slice(0, 1200) || 'أجب بالعربية وباختصار.' } }, { upsert: true, new: true });
+    await AIConfig.findOneAndUpdate({ guildId }, { $set: { enabled: req.body.enabled === 'on', memoryEnabled: req.body.memoryEnabled === 'on', channelId, model, dailyLimit, cooldownMs, maxHistory, maxOutputTokens, systemPrompt: String(req.body.systemPrompt || '').trim().slice(0, 1200) || 'أجب بالعربية السليمة وباختصار.' } }, { upsert: true, new: true });
     res.redirect(`/manage/${guildId}/ai`);
 });
 
@@ -2723,7 +2741,13 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
             aiCooldowns.set(cooldownKey, Date.now());
             await msg.channel.sendTyping().catch(() => {});
             const answer = await askGroq({ guildId: msg.guild.id, userId: msg.author.id, content: msg.content, config: aiCfg });
-            return msg.reply({ content: answer, allowedMentions: { repliedUser: false } }).catch(() => {});
+            const aiEmbed = new EmbedBuilder()
+                .setColor(0x5865f2)
+                .setAuthor({ name: `رد ${msg.author.username}`, iconURL: msg.author.displayAvatarURL({ extension: 'png', size: 128 }) })
+                .setDescription(answer)
+                .setFooter({ text: 'Nebula AI • ذاكرة المستخدم مفعّلة' })
+                .setTimestamp();
+            return msg.reply({ embeds: [aiEmbed], allowedMentions: { repliedUser: false } }).catch(() => {});
         }
     } catch (err) {
         const status = err?.response?.status;
