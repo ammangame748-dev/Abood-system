@@ -406,8 +406,9 @@ function decodeHtml(value) {
 
 async function searchWeb(query) {
     const cleanQuery = String(query).replace(/\s+/g, ' ').trim().slice(0, 4000);
+    const searchQuery = `${cleanQuery} official reliable source latest`;
     const response = await axios.get('https://www.bing.com/search', {
-        params: { format: 'rss', q: cleanQuery },
+        params: { format: 'rss', q: searchQuery },
         headers: { 'User-Agent': 'Mozilla/5.0 NebulaDiscordBot/2026' },
         timeout: 15000
     });
@@ -420,7 +421,8 @@ async function searchWeb(query) {
         const linkMatch = item[1].match(/<link>([\s\S]*?)<\/link>/i);
         const title = decodeHtml(titleMatch?.[1]);
         const url = decodeHtml(linkMatch?.[1]);
-        if (title && url) results.push({ title, url });
+        const blocked = /instagram\.com|facebook\.com|tiktok\.com|pinterest\.com|wiktionary\.org|x\.com|twitter\.com/i.test(url);
+        if (title && url && !blocked) results.push({ title, url });
     }
     return results;
 }
