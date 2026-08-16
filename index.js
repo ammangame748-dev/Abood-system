@@ -399,6 +399,28 @@ async function reserveAIRequest(guildId, dailyLimit) {
     return null;
 }
 
+function decodeHtml(value) {
+    return String(value || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/<[^>]+>/g, '').trim();
+}
+
+async function searchWeb(query) {
+    const response = await axios.get('https://html.duckduckgo.com/html/', {
+        params: { q: String(query).slice(0, 4000) },
+        headers: { 'User-Agent': 'Mozilla/5.0 NebulaDiscordBot/2026' },
+        timeout: 15000
+    });
+    const html = String(response.data || '');
+    const results = [];
+    const pattern = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+    while ((match = pattern.exec(html)) && results.length < 5) {
+        const url = decodeHtml(match[1]);
+        const title = decodeHtml(match[2]);
+        if (url && title) results.push({ title, url });
+    }
+    return results;
+}
+
 async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
     if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is missing');
     const memory = config.memoryEnabled ? await AIMemory.findOne({ guildId, userId }).lean() : null;
@@ -409,18 +431,20 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
         .filter(item => ['system', 'user', 'assistant'].includes(item.role) && item.content.trim())
         .slice(-historyLimit);
     const cleanContent = String(content).replace(/\s+/g, ' ').trim().slice(0, 4000);
+    const webSources = useWeb ? await searchWeb(cleanContent) : [];
+    const sourceContext = webSources.length ? `\nمصادر الويب الحالية:\n${webSources.map((s, i) => `${i + 1}. ${s.title} - ${s.url}`).join('\n')}` : '';
     const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, useWeb ? 500 : 1200);
     const currentDate = new Intl.DateTimeFormat('ar', { dateStyle: 'full', timeZone: 'Asia/Amman' }).format(new Date());
     const messages = [
-        { role: 'system', content: `${systemPrompt}\nالتاريخ الحالي المؤكد هو: ${currentDate}، والسنة الحالية هي 2026. لا تقل إنك محدث حتى 2023 أو أي سنة قديمة. إذا سُئلت عن أحدث خبر أو معلومة ولا تملك مصدرًا مباشرًا، صرّح بوضوح أنك لا تستطيع التحقق بدل اختلاق إجابة. راجع الإملاء والنحو قبل الرد، واستفد من معلومات المستخدم السابقة دون كشفها لغيره.` },
+        { role: 'system', content: `${systemPrompt}\nالتاريخ الحالي المؤكد هو: ${currentDate}، والسنة الحالية هي 2026. لا تقل إنك محدث حتى 2023 أو أي سنة قديمة. عند وجود مصادر، استخدمها بحذر واذكر أرقامها في الإجابة. راجع الإملاء والنحو قبل الرد.${sourceContext}` },
         ...history,
         { role: 'user', content: cleanContent }
     ];
     const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-        model: useWeb ? 'groq/compound-mini' : (config.model || 'llama-3.1-8b-instant'),
+        model: config.model || 'llama-3.1-8b-instant',
         messages,
-        temperature: useWeb ? 0.2 : 0.45,
-        max_completion_tokens: useWeb ? 256 : (Number(config.maxOutputTokens) || 220)
+        temperature: useWeb ? 0.25 : 0.45,
+        max_completion_tokens: Number(config.maxOutputTokens) || 220
     }, {
         timeout: 30000,
         headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }
@@ -436,7 +460,7 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
     }
-    return answer.slice(0, 1900);
+    return { answer: answer.slice(0, 1900), sources: webSources };
 }
 
 function getEmojiDisplay(guild, emojiId) {
@@ -2811,11 +2835,12 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
 
             aiCooldowns.set(cooldownKey, Date.now());
             await msg.channel.sendTyping().catch(() => {});
-            const answer = await askGroq({ guildId: msg.guild.id, userId: msg.author.id, content: msg.content, config: aiCfg });
+            const result = await askGroq({ guildId: msg.guild.id, userId: msg.author.id, content: msg.content, config: aiCfg });
+            const sourceText = result.sources?.length ? `\n\n**المصادر:**\n${result.sources.map((s, i) => `[${i + 1}](${s.url}) ${s.title}`).join('\n')}` : '';
             const aiEmbed = new EmbedBuilder()
                 .setColor(0x5865f2)
                 .setAuthor({ name: `رد ${msg.author.username}`, iconURL: msg.author.displayAvatarURL({ extension: 'png', size: 128 }) })
-                .setDescription(answer)
+                .setDescription(`${result.answer}${sourceText}`)
                 .setFooter({ text: 'Nebula AI • اختر منيو البحث لتحديث الإجابة' })
                 .setTimestamp();
             const nonce = `${msg.id}-${Date.now().toString(36)}`.slice(-80);
@@ -3606,8 +3631,9 @@ client.on('interactionCreate', async (interaction) => {
                 if (!aiCfg?.enabled) return interaction.editReply({ components: [] });
                 const reserved = await reserveAIRequest(interaction.guild.id, Number(aiCfg.dailyLimit || 4000));
                 if (!reserved) return interaction.editReply({ content: 'وصل البوت إلى حد AI اليوم.', embeds: [], components: [] });
-                const answer = await askGroq({ guildId: interaction.guild.id, userId: context.userId, content: context.content, config: aiCfg, forceWeb: true });
-                const embed = new EmbedBuilder().setColor(0x00a8ff).setAuthor({ name: `بحث مباشر لـ ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) }).setDescription(answer).setFooter({ text: 'Nebula AI • تم استخدام البحث في الويب' }).setTimestamp();
+                const result = await askGroq({ guildId: interaction.guild.id, userId: context.userId, content: context.content, config: aiCfg, forceWeb: true });
+                const sourceText = result.sources?.length ? `\n\n**المصادر:**\n${result.sources.map((s, i) => `[${i + 1}](${s.url}) ${s.title}`).join('\n')}` : '';
+                const embed = new EmbedBuilder().setColor(0x00a8ff).setAuthor({ name: `بحث مباشر لـ ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) }).setDescription(`${result.answer}${sourceText}`).setFooter({ text: 'Nebula AI • بحث ويب مستقل' }).setTimestamp();
                 return interaction.editReply({ embeds: [embed], components: [] });
             } catch (err) {
                 console.error('[AI Web Menu Error]', err?.response?.data || err);
