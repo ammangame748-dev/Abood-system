@@ -405,7 +405,7 @@ function decodeHtml(value) {
 
 async function searchWeb(query) {
     const response = await axios.get('https://html.duckduckgo.com/html/', {
-        params: { q: String(query).slice(0, 4000) },
+        params: { q: String(query).replace(/\s+/g, ' ').trim().slice(0, 900) },
         headers: { 'User-Agent': 'Mozilla/5.0 NebulaDiscordBot/2026' },
         timeout: 15000
     });
