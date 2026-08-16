@@ -402,7 +402,7 @@ async function askGroq({ guildId, userId, content, config }) {
         model: config.model || 'llama-3.1-8b-instant',
         messages,
         temperature: 0.45,
-        max_tokens: Number(config.maxOutputTokens) || 220
+        max_completion_tokens: Number(config.maxOutputTokens) || 220
     }, {
         timeout: 30000,
         headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }
@@ -2751,7 +2751,8 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
         }
     } catch (err) {
         const status = err?.response?.status;
-        console.error('[AI Error]', status || err.message || err);
+        const detail = err?.response?.data?.error?.message || err?.response?.data?.error || err.message || err;
+        console.error('[AI Error]', status || 'unknown', detail);
         if (status === 429) msg.reply({ content: 'الخدمة مشغولة حاليًا، جرّب بعد قليل.', allowedMentions: { repliedUser: false } }).catch(() => {});
         else if (err.message === 'GROQ_API_KEY is missing') msg.reply({ content: 'لم يتم ضبط مفتاح AI في متغيرات البيئة.', allowedMentions: { repliedUser: false } }).catch(() => {});
     }
