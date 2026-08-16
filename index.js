@@ -389,13 +389,16 @@ async function reserveAIRequest(guildId, dailyLimit) {
 
 async function askGroq({ guildId, userId, content, config }) {
     if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is missing');
-    const memory = config.memoryEnabled ? await AIMemory.findOne({ guildId, userId }) : null;
-    const history = memory?.messages || [];
+    const memory = config.memoryEnabled ? await AIMemory.findOne({ guildId, userId }).lean() : null;
+    const history = (memory?.messages || [])
+        .map(item => ({ role: String(item.role || ''), content: String(item.content || '') }))
+        .filter(item => ['system', 'user', 'assistant'].includes(item.role) && item.content.trim())
+        .slice(-(Number(config.maxHistory) || 0));
     const cleanContent = String(content).replace(/\s+/g, ' ').trim().slice(0, 1200);
     const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, 1200);
     const messages = [
         { role: 'system', content: `${systemPrompt}\nتذكّر أن تراجع الإملاء والنحو، وأن تستفيد من معلومات المستخدم السابقة دون كشفها لغيره.` },
-        ...history.slice(-(Number(config.maxHistory) || 0)),
+        ...history,
         { role: 'user', content: cleanContent }
     ];
     const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
@@ -410,7 +413,8 @@ async function askGroq({ guildId, userId, content, config }) {
     const answer = String(response.data?.choices?.[0]?.message?.content || '').trim();
     if (!answer) throw new Error('Groq returned an empty response');
     if (config.memoryEnabled) {
-        const nextMessages = [...history, { role: 'user', content: cleanContent }, { role: 'assistant', content: answer.slice(0, 1500) }];
+        const nextMessages = [...history, { role: 'user', content: cleanContent }, { role: 'assistant', content: answer.slice(0, 1500) }]
+            .map(item => ({ role: item.role, content: String(item.content).slice(0, 1500) }));
         await AIMemory.findOneAndUpdate(
             { guildId, userId },
             { $set: { messages: nextMessages.slice(-Math.max(0, (Number(config.maxHistory) || 0) * 2)), updatedAt: new Date() } },
