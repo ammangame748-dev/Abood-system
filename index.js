@@ -407,35 +407,55 @@ function decodeHtml(value) {
 async function searchWeb(query) {
     const cleanQuery = String(query).replace(/\s+/g, ' ').trim().slice(0, 4000);
     if (!cleanQuery) return [];
-    const response = await axios.get('https://www.bing.com/search', {
-        params: { format: 'rss', q: `${cleanQuery} official reliable source` },
-        headers: { 'User-Agent': 'Mozilla/5.0 NebulaDiscordBot/2026' }, timeout: 15000
+    const response = await axios.get('https://html.duckduckgo.com/html/', {
+        params: { q: cleanQuery },
+        headers: { 'User-Agent': 'Mozilla/5.0 NebulaDiscordBot/2026', Accept: 'text/html' },
+        timeout: 15000
     });
-    const xml = String(response.data || '');
+    const html = String(response.data || '');
     const results = [], domains = new Set();
-    const itemPattern = /<item>([\s\S]*?)<\/item>/gi;
-    let item;
-    while ((item = itemPattern.exec(xml)) && results.length < 6) {
-        const block = item[1];
-        const title = decodeHtml(block.match(/<title>([\s\S]*?)<\/title>/i)?.[1]);
-        const url = decodeHtml(block.match(/<link>([\s\S]*?)<\/link>/i)?.[1]);
+    const queryTokens = cleanQuery.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(x => x.length >= 3 && !/^(official|reliable|source|latest)$/i.test(x));
+    const relevanceGroups = [
+        ['الأردن', 'الاردن', 'jordan', 'amman'],
+        ['حفلات', 'حفلة', 'حفل', 'concert', 'events', 'festival', 'music'],
+        ['المغنين', 'مغني', 'مغنين', 'singer', 'artist', 'artists', 'غنائي', 'فنان']
+    ];
+    const linkPattern = /<a[^>]+class=["']result__a["'][^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+    while ((match = linkPattern.exec(html)) && results.length < 8) {
+        let url = decodeHtml(match[1]);
+        const title = decodeHtml(match[2]);
+        try {
+            if (url.startsWith('//')) url = `https:${url}`;
+            const parsed = new URL(url);
+            const redirected = parsed.searchParams.get('uddg');
+            if (redirected) url = decodeURIComponent(redirected);
+        } catch { continue; }
         let host = ''; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch {}
+        const haystack = `${title} ${url}`.toLowerCase();
+        const matchedTokens = queryTokens.filter(token => haystack.includes(token)).length;
+        const matchedGroups = relevanceGroups.filter(group => group.some(term => haystack.includes(term))).length;
+        const requiredGroups = relevanceGroups.filter(group => queryTokens.some(token => group.includes(token))).length;
         const blocked = /instagram\.com|facebook\.com|tiktok\.com|pinterest\.com|wiktionary\.org|x\.com|twitter\.com/i.test(host);
-        if (title && url && host && !blocked && !domains.has(host)) {
+        // Reject unrelated pages such as Microsoft/Amtrak results returned for an Arabic query.
+        if (title && url && host && !blocked && !domains.has(host) && (requiredGroups < 2 ? matchedTokens >= Math.min(1, queryTokens.length) : matchedGroups >= Math.min(2, requiredGroups))) {
             domains.add(host);
-            results.push({ title: title.slice(0, 240), url, domain: host });
+            results.push({ title: title.slice(0, 240), url, domain: host, matchedTokens });
         }
     }
-    // Fetch lightweight page metadata so the model receives evidence, not only search titles.
     const enriched = await Promise.all(results.map(async source => {
         try {
             const page = await axios.get(source.url, { timeout: 8000, maxContentLength: 500000, headers: { 'User-Agent': 'Mozilla/5.0 NebulaDiscordBot/2026' } });
-            const html = String(page.data || '').slice(0, 500000);
-            const description = decodeHtml(html.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']*)["']/i)?.[1] || '').slice(0, 500);
-            return { ...source, description };
+            const pageHtml = String(page.data || '').slice(0, 500000);
+            const description = decodeHtml(pageHtml.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']*)["']/i)?.[1] || '').slice(0, 500);
+            const evidence = `${source.title} ${description}`.toLowerCase();
+            const evidenceMatches = queryTokens.filter(token => evidence.includes(token)).length;
+            const evidenceGroups = relevanceGroups.filter(group => group.some(term => evidence.includes(term))).length;
+            const validEvidence = requiredGroups < 2 ? evidenceMatches >= 1 : evidenceGroups >= Math.min(2, requiredGroups);
+            return validEvidence ? { ...source, description, matchedTokens: evidenceMatches } : null;
         } catch { return source; }
     }));
-    return enriched;
+    return enriched.filter(Boolean).slice(0, 6);
 }
 
 async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
@@ -457,11 +477,11 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
             console.error(`[AI DEBUG ${AI_BUILD_VERSION}] searchWeb failed status=${searchError?.response?.status || 'unknown'} message=${searchError?.response?.data?.error?.message || searchError.message}`);
         }
     }
-    const sourceContext = webSources.length ? `\nمصادر الويب الحالية (الأرقام مرجعية):\n${webSources.map((s, i) => `${i + 1}. ${s.title} - ${s.url}${s.description ? `\\nوصف الصفحة: ${s.description}` : ''}`).join('\n')}\nإذا تعارضت المصادر أو لم تؤكد التفاصيل، اذكر عدم اليقين ولا تخترع.` : '\nلم تظهر نتائج بحث موثوقة؛ لا تخمّن الإجابة واذكر أنك لم تستطع التحقق.';
+    const sourceContext = webSources.length ? `\nبيانات تحقق داخلية من الويب: ${webSources.map((s, i) => `(${i + 1}) ${s.title}${s.description ? ` - ${s.description}` : ''}`).join(' | ')}\nاستخدم هذه البيانات للتحقق فقط، ولا تعرض روابط أو قائمة مصادر أو أرقام مراجع للمستخدم. إذا تعارضت البيانات أو لم تؤكد التفاصيل، اذكر عدم اليقين ولا تخترع.` : '\nلم تظهر نتائج ويب مرتبطة بما يكفي؛ لا تخمّن ولا تعرض مصادر.';
     const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, useWeb ? 500 : 1200);
     const currentDate = new Intl.DateTimeFormat('ar', { dateStyle: 'full', timeZone: 'Asia/Amman' }).format(new Date());
     const messages = [
-        { role: 'system', content: `${systemPrompt}\nالتاريخ الحالي المؤكد هو: ${currentDate}، والسنة الحالية هي 2026. لا تقل إنك محدث حتى 2023 أو أي سنة قديمة. عند وجود مصادر، استخدمها بحذر واذكر أرقامها في الإجابة. راجع الإملاء والنحو قبل الرد.${sourceContext}` },
+        { role: 'system', content: `${systemPrompt}\nالتاريخ الحالي المؤكد هو: ${currentDate}، والسنة الحالية هي 2026. لا تقل إنك محدث حتى 2023 أو أي سنة قديمة. استخدم بيانات الويب للتحقق الداخلي فقط ولا تذكر مصادر أو روابط في الإجابة. راجع الإملاء والنحو قبل الرد.${sourceContext}` },
         ...history,
         { role: 'user', content: cleanContent }
     ];
@@ -2869,17 +2889,17 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
             aiCooldowns.set(cooldownKey, Date.now());
             await msg.channel.sendTyping().catch(() => {});
             const result = await askGroq({ guildId: msg.guild.id, userId: msg.author.id, content: msg.content, config: aiCfg });
-            const sourceText = result.sources?.length ? `\n\n**المصادر:**\n${result.sources.map((s, i) => `[${i + 1}](${s.url}) ${s.title}`).join('\n')}` : '';
+            const sourceText = '';
             const aiEmbed = new EmbedBuilder()
                 .setColor(0x5865f2)
                 .setAuthor({ name: `رد ${msg.author.username}`, iconURL: msg.author.displayAvatarURL({ extension: 'png', size: 128 }) })
                 .setDescription(`${result.answer}${sourceText}`)
-                .setFooter({ text: 'Nebula AI • اختر منيو البحث لتحديث الإجابة' })
+                .setFooter({ text: 'Nebula AI • تم التحقق داخليًا من الويب' })
                 .setTimestamp();
             const nonce = `${msg.id}-${Date.now().toString(36)}`.slice(-80);
             aiResponseContexts.set(nonce, { userId: msg.author.id, guildId: msg.guild.id, content: msg.content });
             setTimeout(() => aiResponseContexts.delete(nonce), 15 * 60 * 1000);
-            return msg.reply({ embeds: [aiEmbed], components: aiWebComponents(nonce), allowedMentions: { repliedUser: false } }).catch(() => {});
+            return msg.reply({ embeds: [aiEmbed], allowedMentions: { repliedUser: false } }).catch(() => {});
         }
     } catch (err) {
         const status = err?.response?.status;
@@ -3665,8 +3685,8 @@ client.on('interactionCreate', async (interaction) => {
                 const reserved = await reserveAIRequest(interaction.guild.id, Number(aiCfg.dailyLimit || 4000));
                 if (!reserved) return interaction.editReply({ content: 'وصل البوت إلى حد AI اليوم.', embeds: [], components: [] });
                 const result = await askGroq({ guildId: interaction.guild.id, userId: context.userId, content: context.content, config: aiCfg, forceWeb: true });
-                const sourceText = result.sources?.length ? `\n\n**المصادر:**\n${result.sources.map((s, i) => `[${i + 1}](${s.url}) ${s.title}`).join('\n')}` : '';
-                const embed = new EmbedBuilder().setColor(0x00a8ff).setAuthor({ name: `بحث مباشر لـ ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) }).setDescription(`${result.answer}${sourceText}`).setFooter({ text: 'Nebula AI • بحث ويب مستقل' }).setTimestamp();
+                const sourceText = '';
+                const embed = new EmbedBuilder().setColor(0x00a8ff).setAuthor({ name: `بحث مباشر لـ ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) }).setDescription(`${result.answer}${sourceText}`).setFooter({ text: 'Nebula AI • تم التحقق داخليًا من الويب' }).setTimestamp();
                 return interaction.editReply({ embeds: [embed], components: [] });
             } catch (err) {
                 console.error('[AI Web Menu Error]', err?.response?.data || err);
