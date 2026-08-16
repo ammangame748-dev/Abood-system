@@ -57,7 +57,7 @@ const AIConfig = mongoose.model('AIConfig', new mongoose.Schema({
     maxHistory: { type: Number, default: 4, min: 0, max: 12 },
     maxOutputTokens: { type: Number, default: 220, min: 40, max: 600 },
     memoryEnabled: { type: Boolean, default: true },
-    webSearchEnabled: { type: Boolean, default: false },
+    webSearchEnabled: { type: Boolean, default: true },
     systemPrompt: { type: String, default: 'أنت مساعد ذكي وودود داخل سيرفر Discord. أجب بالعربية السليمة غالبًا، راجع الإملاء والنحو قبل الرد، افهم سياق كلام المستخدم، ولا تخترع معلومات. كن واضحًا ومختصرًا ونسّق الرد على شكل فقرات قصيرة.' }
 }));
 
@@ -406,31 +406,42 @@ function decodeHtml(value) {
 
 async function searchWeb(query) {
     const cleanQuery = String(query).replace(/\s+/g, ' ').trim().slice(0, 4000);
-    const searchQuery = `${cleanQuery} official reliable source latest`;
+    if (!cleanQuery) return [];
     const response = await axios.get('https://www.bing.com/search', {
-        params: { format: 'rss', q: searchQuery },
-        headers: { 'User-Agent': 'Mozilla/5.0 NebulaDiscordBot/2026' },
-        timeout: 15000
+        params: { format: 'rss', q: `${cleanQuery} official reliable source` },
+        headers: { 'User-Agent': 'Mozilla/5.0 NebulaDiscordBot/2026' }, timeout: 15000
     });
     const xml = String(response.data || '');
-    const results = [];
+    const results = [], domains = new Set();
     const itemPattern = /<item>([\s\S]*?)<\/item>/gi;
     let item;
-    while ((item = itemPattern.exec(xml)) && results.length < 5) {
-        const titleMatch = item[1].match(/<title>([\s\S]*?)<\/title>/i);
-        const linkMatch = item[1].match(/<link>([\s\S]*?)<\/link>/i);
-        const title = decodeHtml(titleMatch?.[1]);
-        const url = decodeHtml(linkMatch?.[1]);
-        const blocked = /instagram\.com|facebook\.com|tiktok\.com|pinterest\.com|wiktionary\.org|x\.com|twitter\.com/i.test(url);
-        if (title && url && !blocked) results.push({ title, url });
+    while ((item = itemPattern.exec(xml)) && results.length < 6) {
+        const block = item[1];
+        const title = decodeHtml(block.match(/<title>([\s\S]*?)<\/title>/i)?.[1]);
+        const url = decodeHtml(block.match(/<link>([\s\S]*?)<\/link>/i)?.[1]);
+        let host = ''; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch {}
+        const blocked = /instagram\.com|facebook\.com|tiktok\.com|pinterest\.com|wiktionary\.org|x\.com|twitter\.com/i.test(host);
+        if (title && url && host && !blocked && !domains.has(host)) {
+            domains.add(host);
+            results.push({ title: title.slice(0, 240), url, domain: host });
+        }
     }
-    return results;
+    // Fetch lightweight page metadata so the model receives evidence, not only search titles.
+    const enriched = await Promise.all(results.map(async source => {
+        try {
+            const page = await axios.get(source.url, { timeout: 8000, maxContentLength: 500000, headers: { 'User-Agent': 'Mozilla/5.0 NebulaDiscordBot/2026' } });
+            const html = String(page.data || '').slice(0, 500000);
+            const description = decodeHtml(html.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']*)["']/i)?.[1] || '').slice(0, 500);
+            return { ...source, description };
+        } catch { return source; }
+    }));
+    return enriched;
 }
 
 async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
     if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is missing');
     const memory = config.memoryEnabled ? await AIMemory.findOne({ guildId, userId }).lean() : null;
-    const useWeb = forceWeb || config.webSearchEnabled || /اليوم|حالي|آخر|اخر|أحدث|احدث|2026|الآن|الان|أخبار|اخبار|منذ|هذا الأسبوع|هذا الشهر/i.test(String(content));
+    const useWeb = true; // البحث بالويب إلزامي حسب طلب المالك.
     const historyLimit = useWeb ? 0 : (Number(config.maxHistory) || 0);
     const history = (memory?.messages || [])
         .map(item => ({ role: String(item.role || ''), content: String(item.content || '').slice(0, useWeb ? 0 : 1200) }))
@@ -446,7 +457,7 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
             console.error(`[AI DEBUG ${AI_BUILD_VERSION}] searchWeb failed status=${searchError?.response?.status || 'unknown'} message=${searchError?.response?.data?.error?.message || searchError.message}`);
         }
     }
-    const sourceContext = webSources.length ? `\nمصادر الويب الحالية:\n${webSources.map((s, i) => `${i + 1}. ${s.title} - ${s.url}`).join('\n')}` : '\nلم تظهر نتائج بحث موثوقة؛ لا تخمّن الإجابة واذكر أنك لم تستطع التحقق.';
+    const sourceContext = webSources.length ? `\nمصادر الويب الحالية (الأرقام مرجعية):\n${webSources.map((s, i) => `${i + 1}. ${s.title} - ${s.url}${s.description ? `\\nوصف الصفحة: ${s.description}` : ''}`).join('\n')}\nإذا تعارضت المصادر أو لم تؤكد التفاصيل، اذكر عدم اليقين ولا تخترع.` : '\nلم تظهر نتائج بحث موثوقة؛ لا تخمّن الإجابة واذكر أنك لم تستطع التحقق.';
     const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, useWeb ? 500 : 1200);
     const currentDate = new Intl.DateTimeFormat('ar', { dateStyle: 'full', timeZone: 'Asia/Amman' }).format(new Date());
     const messages = [
@@ -1470,7 +1481,7 @@ app.post('/save/:guildId/generalcmds', checkAuth, async (req, res) => {
 app.get('/manage/:guildId/ai', checkAuth, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    const defaults = { enabled: false, channelId: '', model: 'llama-3.1-8b-instant', dailyLimit: 4000, cooldownMs: 8000, maxHistory: 4, maxOutputTokens: 220, memoryEnabled: true, webSearchEnabled: false, systemPrompt: 'أنت مساعد ذكي وودود داخل سيرفر Discord. أجب بالعربية السليمة غالبًا وباختصار وبدون اختلاق معلومات.' };
+    const defaults = { enabled: false, channelId: '', model: 'llama-3.1-8b-instant', dailyLimit: 4000, cooldownMs: 8000, maxHistory: 4, maxOutputTokens: 220, memoryEnabled: true, webSearchEnabled: true, systemPrompt: 'أنت مساعد ذكي وودود داخل سيرفر Discord. أجب بالعربية السليمة غالبًا وباختصار وبدون اختلاق معلومات.' };
     const saved = await AIConfig.findOne({ guildId: g.id });
     const cfg = { ...defaults, ...(saved?.toObject?.() || saved || {}) };
     if (!['llama-3.1-8b-instant', 'llama-3.3-70b-versatile'].includes(cfg.model)) cfg.model = 'llama-3.3-70b-versatile';
@@ -2620,60 +2631,65 @@ app.post('/save/:guildId/mod', checkAuth, async (req, res) => {
 
 
 
+function parseAdminIntent(text, msg) {
+    const t = String(text || '').replace(/\s+/g, ' ').trim();
+    const target = msg.mentions.members.filter(m => m.id !== client.user.id).first() || null;
+    const roleMention = msg.mentions.roles.first() || null;
+    const quoted = t.match(/["“”']([^"“”']+)["“”']/)?.[1];
+    const nameAfter = (patterns) => { for (const re of patterns) { const m = t.match(re); if (m?.[1]) return (quoted || m[1]).replace(/\s+(?:من|لـ|ل)\s+<@!?\d+>.*$/i, '').trim().slice(0, 90); } return quoted || ''; };
+    if (/اعمل|أنشئ|انشئ|سوي|سوّي|create/i.test(t) && /رتب|role/i.test(t)) return { action: 'create_role', name: nameAfter([/(?:رتبة|رتبه|role)\s+(.+)/i]) };
+    if (/احذف|حذف|شيل|delete|remove/i.test(t) && /رتب|role/i.test(t)) return { action: 'delete_role', role: roleMention, name: nameAfter([/(?:رتبة|رتبه|role)\s+(.+)/i]) };
+    if (/اسحب|شيل|remove/i.test(t) && /رتب|role/i.test(t)) return { action: 'remove_role', target, role: roleMention, name: nameAfter([/(?:رتبة|رتبه|role)\s+(.+)/i]) };
+    if (/اعط|أعط|ضيف|اضف|add|give/i.test(t) && /رتب|role/i.test(t)) return { action: 'add_role', target, role: roleMention, name: nameAfter([/(?:رتبة|رتبه|role)\s+(.+)/i]) };
+    if (/اعمل|أنشئ|انشئ|سوي|سوّي|create/i.test(t) && /روم|قناة|channel/i.test(t)) return { action: 'create_channel', name: nameAfter([/(?:روم|قناة|channel)\s+(.+)/i]) };
+    if (/احذف|حذف|delete/i.test(t) && /روم|قناة|channel/i.test(t)) return { action: 'delete_channel', channel: msg.mentions.channels.first() || null };
+    if (/قفل|اقفل|lock/i.test(t)) return { action: 'lock' };
+    if (/فتح|افتح|unlock/i.test(t)) return { action: 'unlock' };
+    if (/كتم|تايم|timeout/i.test(t)) return { action: 'timeout', target, duration: parseDuration(t.match(/\b\d+(?:s|m|h|d|w)\b/i)?.[0] || '10m') };
+    if (/فك.*كتم|untimeout/i.test(t)) return { action: 'untimeout', target };
+    if (/حظر|احظر|ban/i.test(t)) return { action: 'ban', target };
+    if (/طرد|اطرد|kick/i.test(t)) return { action: 'kick', target };
+    return null;
+}
+
+async function executeAdminIntent(msg, intent) {
+    const me = msg.guild.members.me;
+    const requireBot = (perm) => { if (!me.permissions.has(perm)) throw new Error(`البوت يحتاج صلاحية ${perm}.`); };
+    const target = intent.target;
+    if (['timeout','untimeout','ban','kick','add_role','remove_role'].includes(intent.action) && !target) throw new Error('منشن العضو المطلوب أولًا.');
+    if (intent.action === 'lock' || intent.action === 'unlock') { requireBot(PermissionFlagsBits.ManageChannels); await msg.channel.permissionOverwrites.edit(msg.guild.roles.everyone, { SendMessages: intent.action === 'lock' ? false : null }); return intent.action === 'lock' ? 'تم قفل الروم.' : 'تم فتح الروم.'; }
+    if (intent.action === 'timeout') { requireBot(PermissionFlagsBits.ModerateMembers); if (!intent.duration) throw new Error('المدة غير صحيحة. استخدم 10m أو 1h.'); if (!target.moderatable) throw new Error('لا أستطيع كتم هذا العضو بسبب ترتيب الرتب.'); await target.timeout(intent.duration.milliseconds, `AI admin بواسطة ${msg.author.tag}`); return `تم كتم ${target} لمدة ${intent.duration.text}.`; }
+    if (intent.action === 'untimeout') { requireBot(PermissionFlagsBits.ModerateMembers); await target.timeout(null, `AI admin بواسطة ${msg.author.tag}`); return `تم فك الكتم عن ${target}.`; }
+    if (intent.action === 'ban') { requireBot(PermissionFlagsBits.BanMembers); if (!target.bannable) throw new Error('لا أستطيع حظر هذا العضو.'); await target.ban({ reason: `AI admin بواسطة ${msg.author.tag}` }); return 'تم حظر العضو.'; }
+    if (intent.action === 'kick') { requireBot(PermissionFlagsBits.KickMembers); if (!target.kickable) throw new Error('لا أستطيع طرد هذا العضو.'); await target.kick(`AI admin بواسطة ${msg.author.tag}`); return 'تم طرد العضو.'; }
+    if (intent.action === 'create_role') { requireBot(PermissionFlagsBits.ManageRoles); if (!intent.name) throw new Error('اكتب اسم الرتبة.'); const role = await msg.guild.roles.create({ name: intent.name, reason: `AI admin بواسطة ${msg.author.tag}` }); return `تم إنشاء الرتبة <@&${role.id}>.`; }
+    const role = intent.role || msg.guild.roles.cache.find(r => r.name.toLowerCase() === String(intent.name || '').toLowerCase());
+    if (['add_role','remove_role'].includes(intent.action)) { requireBot(PermissionFlagsBits.ManageRoles); if (!role) throw new Error('منشن الرتبة أو اكتب اسمها بوضوح.'); if (!role.editable) throw new Error('لا أستطيع تعديل هذه الرتبة لأن رتبة البوت ليست أعلى منها.'); if (intent.action === 'add_role') await target.roles.add(role, `AI admin بواسطة ${msg.author.tag}`); else await target.roles.remove(role, `AI admin بواسطة ${msg.author.tag}`); return `${intent.action === 'add_role' ? 'تم إعطاء' : 'تم سحب'} الرتبة ${role} من ${target}.`; }
+    if (intent.action === 'delete_role') { requireBot(PermissionFlagsBits.ManageRoles); if (!role || !role.editable) throw new Error('منشن رتبة قابلة للحذف.'); await role.delete(`AI admin بواسطة ${msg.author.tag}`); return 'تم حذف الرتبة.'; }
+    if (intent.action === 'create_channel') { requireBot(PermissionFlagsBits.ManageChannels); if (!intent.name) throw new Error('اكتب اسم الروم.'); const channel = await msg.guild.channels.create({ name: intent.name.toLowerCase().replace(/[^\p{L}\p{N}\-_ ]/gu, '').trim().slice(0, 90) || 'new-channel', type: ChannelType.GuildText, reason: `AI admin بواسطة ${msg.author.tag}` }); return `تم إنشاء الروم ${channel}.`; }
+    if (intent.action === 'delete_channel') { requireBot(PermissionFlagsBits.ManageChannels); if (!intent.channel) throw new Error('منشن الروم المطلوب حذفه صراحةً.'); await intent.channel.delete(`AI admin بواسطة ${msg.author.tag}`); return 'تم حذف الروم.'; }
+    throw new Error('الأمر غير مسموح.');
+}
+
 // ==========================================
 // 10. Discord Event Handlers
 // ==========================================
 
 client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) return;
 
-    // --- [ أوامر الإدارة عبر منشن البوت ] ---
+    // --- [ AI Admin عبر منشن البوت: أوامر مسموحة فقط + تحقق Discord ] ---
     if (client.user && msg.mentions.has(client.user.id)) {
         const adminText = msg.content.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim();
-        const target = msg.mentions.members.filter(member => member.id !== client.user.id).first();
-        const isAdmin = msg.member.permissions.has(PermissionFlagsBits.Administrator);
-        if (!isAdmin) return msg.reply({ content: 'هذا الأمر مخصص لمن لديهم صلاحية Administrator فقط.', allowedMentions: { repliedUser: false } }).catch(() => {});
-
+        const isAdmin = msg.member.permissions.has(PermissionFlagsBits.Administrator) || msg.member.permissions.has(PermissionFlagsBits.ManageGuild);
+        if (!isAdmin) return msg.reply({ content: 'هذا الأمر مخصص للإدارة فقط (Administrator أو Manage Server).', allowedMentions: { repliedUser: false } }).catch(() => {});
         try {
-            const lower = adminText.toLowerCase();
-            const success = (text) => msg.reply({ embeds: [new EmbedBuilder().setColor(0x00c853).setDescription(`✅ ${text}`).setTimestamp()], allowedMentions: { repliedUser: false } });
-            if (/(^|\s)(قفل|lock|اقفل)(\s|$)/i.test(lower)) {
-                if (!msg.channel.permissionsFor(msg.guild.members.me).has(PermissionFlagsBits.ManageChannels)) return msg.reply('لا أملك صلاحية Manage Channels.');
-                await msg.channel.permissionOverwrites.edit(msg.guild.roles.everyone, { SendMessages: false });
-                return success('تم قفل الروم بنجاح.');
-            }
-            if (/(^|\s)(فتح|unlock|افتح)(\s|$)/i.test(lower)) {
-                if (!msg.channel.permissionsFor(msg.guild.members.me).has(PermissionFlagsBits.ManageChannels)) return msg.reply('لا أملك صلاحية Manage Channels.');
-                await msg.channel.permissionOverwrites.edit(msg.guild.roles.everyone, { SendMessages: null });
-                return success('تم فتح الروم بنجاح.');
-            }
-            if (/(^|\s)(كتم|timeout|اسكت)(\s|$)/i.test(lower)) {
-                if (!target) return msg.reply('منشن العضو المطلوب كتمه.');
-                const duration = parseDuration(adminText.split(/\s+/).find(v => /^\d+(s|m|h|d|w)$/i.test(v)) || '10m');
-                if (!duration) return msg.reply('اكتب مدة صحيحة مثل `10m` أو `1h`.');
-                if (!msg.guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers)) return msg.reply('لا أملك صلاحية Moderate Members.');
-                await target.timeout(duration.milliseconds, `طلب إداري من ${msg.author.tag}`);
-                return success(`تم كتم ${target} لمدة ${duration.text}.`);
-            }
-            if (/(^|\s)(فك\s+الكتم|untimeout|فككتم)(\s|$)/i.test(lower)) {
-                if (!target) return msg.reply('منشن العضو المطلوب فك كتمه.');
-                await target.timeout(null, `طلب إداري من ${msg.author.tag}`);
-                return success(`تم فك كتم ${target}.`);
-            }
-            if (/(^|\s)(حظر|ban|احظر)(\s|$)/i.test(lower)) {
-                if (!target) return msg.reply('منشن العضو المطلوب حظره.');
-                if (!msg.guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) return msg.reply('لا أملك صلاحية Ban Members.');
-                await target.ban({ reason: `طلب إداري من ${msg.author.tag}` });
-                return success('تم حظر العضو بنجاح.');
-            }
-            if (/(^|\s)(طرد|kick|اطرد)(\s|$)/i.test(lower)) {
-                if (!target) return msg.reply('منشن العضو المطلوب طرده.');
-                if (!msg.guild.members.me.permissions.has(PermissionFlagsBits.KickMembers)) return msg.reply('لا أملك صلاحية Kick Members.');
-                await target.kick(`طلب إداري من ${msg.author.tag}`);
-                return success('تم طرد العضو بنجاح.');
-            }
+            const intent = parseAdminIntent(adminText, msg);
+            if (!intent) return msg.reply({ content: 'لم أفهم الأمر. أمثلة: `اعمل رتبة مشرف`، `اعمل روم الأخبار`، `اسحب رتبة عضو من @فلان`، `اقفل الروم`.', allowedMentions: { repliedUser: false } });
+            const result = await executeAdminIntent(msg, intent);
+            return msg.reply({ embeds: [new EmbedBuilder().setColor(0x00c853).setDescription(`✅ ${result}`).setTimestamp()], allowedMentions: { repliedUser: false } });
         } catch (err) {
-            console.error('[Mention Admin Error]', err);
-            return msg.reply('تعذر تنفيذ الأمر. تأكد من صلاحيات البوت وأن رتبة البوت أعلى من العضو.').catch(() => {});
+            console.error('[AI Mention Admin Error]', err);
+            return msg.reply({ content: `تعذر تنفيذ الأمر بأمان: ${err.message || 'تحقق من صلاحيات البوت وموضع رتبته.'}`, allowedMentions: { repliedUser: false } }).catch(() => {});
         }
     }
 
