@@ -402,13 +402,14 @@ async function reserveAIRequest(guildId, dailyLimit) {
 async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
     if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is missing');
     const memory = config.memoryEnabled ? await AIMemory.findOne({ guildId, userId }).lean() : null;
-    const historyLimit = forceWeb ? 1 : (Number(config.maxHistory) || 0);
+    const useWeb = forceWeb || config.webSearchEnabled || /اليوم|حالي|آخر|اخر|أحدث|احدث|2026|الآن|الان|أخبار|اخبار|منذ|هذا الأسبوع|هذا الشهر/i.test(String(content));
+    const historyLimit = useWeb ? 0 : (Number(config.maxHistory) || 0);
     const history = (memory?.messages || [])
-        .map(item => ({ role: String(item.role || ''), content: String(item.content || '').slice(0, forceWeb ? 500 : 1500) }))
+        .map(item => ({ role: String(item.role || ''), content: String(item.content || '').slice(0, useWeb ? 0 : 1200) }))
         .filter(item => ['system', 'user', 'assistant'].includes(item.role) && item.content.trim())
         .slice(-historyLimit);
-    const cleanContent = String(content).replace(/\s+/g, ' ').trim().slice(0, 1200);
-    const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, 1200);
+    const cleanContent = String(content).replace(/\s+/g, ' ').trim().slice(0, useWeb ? 500 : 1200);
+    const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, useWeb ? 350 : 1200);
     const currentDate = new Intl.DateTimeFormat('ar', { dateStyle: 'full', timeZone: 'Asia/Amman' }).format(new Date());
     const messages = [
         { role: 'system', content: `${systemPrompt}\nالتاريخ الحالي المؤكد هو: ${currentDate}، والسنة الحالية هي 2026. لا تقل إنك محدث حتى 2023 أو أي سنة قديمة. إذا سُئلت عن أحدث خبر أو معلومة ولا تملك مصدرًا مباشرًا، صرّح بوضوح أنك لا تستطيع التحقق بدل اختلاق إجابة. راجع الإملاء والنحو قبل الرد، واستفد من معلومات المستخدم السابقة دون كشفها لغيره.` },
@@ -416,10 +417,10 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
         { role: 'user', content: cleanContent }
     ];
     const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-        model: (forceWeb || config.webSearchEnabled || /اليوم|حالي|آخر|اخر|أحدث|احدث|2026|الآن|الان|أخبار|اخبار|منذ|هذا الأسبوع|هذا الشهر/i.test(cleanContent)) ? 'groq/compound-mini' : (config.model || 'llama-3.1-8b-instant'),
+        model: useWeb ? 'groq/compound-mini' : (config.model || 'llama-3.1-8b-instant'),
         messages,
-        temperature: forceWeb ? 0.2 : 0.45,
-        max_completion_tokens: forceWeb ? 120 : (Number(config.maxOutputTokens) || 220)
+        temperature: useWeb ? 0.2 : 0.45,
+        max_completion_tokens: useWeb ? 80 : (Number(config.maxOutputTokens) || 220)
     }, {
         timeout: 30000,
         headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }
@@ -2826,7 +2827,8 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
         const status = err?.response?.status;
         const detail = err?.response?.data?.error?.message || err?.response?.data?.error || err.message || err;
         console.error('[AI Error]', status || 'unknown', detail);
-        if (status === 429) msg.reply({ content: 'الخدمة مشغولة حاليًا، جرّب بعد قليل.', allowedMentions: { repliedUser: false } }).catch(() => {});
+        if (status === 413) msg.reply({ content: 'سؤال البحث طويل جدًا. اختصره وجرب مرة ثانية.', allowedMentions: { repliedUser: false } }).catch(() => {});
+        else if (status === 429) msg.reply({ content: 'الخدمة مشغولة حاليًا، جرّب بعد قليل.', allowedMentions: { repliedUser: false } }).catch(() => {});
         else if (err.message === 'GROQ_API_KEY is missing') msg.reply({ content: 'لم يتم ضبط مفتاح AI في متغيرات البيئة.', allowedMentions: { repliedUser: false } }).catch(() => {});
     }
 
