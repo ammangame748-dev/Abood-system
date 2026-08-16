@@ -396,13 +396,14 @@ async function askGroq({ guildId, userId, content, config }) {
         .slice(-(Number(config.maxHistory) || 0));
     const cleanContent = String(content).replace(/\s+/g, ' ').trim().slice(0, 1200);
     const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, 1200);
+    const currentDate = new Intl.DateTimeFormat('ar', { dateStyle: 'full', timeZone: 'Asia/Amman' }).format(new Date());
     const messages = [
-        { role: 'system', content: `${systemPrompt}\nتذكّر أن تراجع الإملاء والنحو، وأن تستفيد من معلومات المستخدم السابقة دون كشفها لغيره.` },
+        { role: 'system', content: `${systemPrompt}\nالتاريخ الحالي المؤكد هو: ${currentDate}، والسنة الحالية هي 2026. لا تقل إنك محدث حتى 2023 أو أي سنة قديمة. إذا سُئلت عن أحدث خبر أو معلومة ولا تملك مصدرًا مباشرًا، صرّح بوضوح أنك لا تستطيع التحقق بدل اختلاق إجابة. راجع الإملاء والنحو قبل الرد، واستفد من معلومات المستخدم السابقة دون كشفها لغيره.` },
         ...history,
         { role: 'user', content: cleanContent }
     ];
     const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-        model: config.model || 'llama-3.1-8b-instant',
+        model: /اليوم|حالي|آخر|اخر|أحدث|احدث|2026|الآن|الان|أخبار|اخبار|منذ|هذا الأسبوع|هذا الشهر/i.test(cleanContent) ? 'groq/compound-mini' : (config.model || 'llama-3.1-8b-instant'),
         messages,
         temperature: 0.45,
         max_completion_tokens: Number(config.maxOutputTokens) || 220
@@ -1434,7 +1435,7 @@ app.get('/manage/:guildId/ai', checkAuth, async (req, res) => {
                 <label>روم الدردشة</label>
                 <select name="channelId" required><option value="">اختر روم الدردشة</option>${options}</select>
                 <label>النموذج</label>
-                <select name="model"><option value="llama-3.1-8b-instant" ${cfg.model === 'llama-3.1-8b-instant' ? 'selected' : ''}>Llama 3.1 8B Instant</option><option value="llama-3.3-70b-versatile" ${cfg.model === 'llama-3.3-70b-versatile' ? 'selected' : ''}>Llama 3.3 70B</option></select>
+                <select name="model"><option value="llama-3.1-8b-instant" ${cfg.model === 'llama-3.1-8b-instant' ? 'selected' : ''}>Llama 3.1 8B Instant</option><option value="llama-3.3-70b-versatile" ${cfg.model === 'llama-3.3-70b-versatile' ? 'selected' : ''}>Llama 3.3 70B</option><option value="groq/compound-mini" ${cfg.model === 'groq/compound-mini' ? 'selected' : ''}>Compound Mini - بحث مباشر</option><option value="groq/compound" ${cfg.model === 'groq/compound' ? 'selected' : ''}>Compound - بحث مباشر متقدم</option></select>
                 <label>الحد اليومي للطلبات</label>
                 <input type="number" name="dailyLimit" min="1" max="4000" value="${Math.min(4000, Math.max(1, Number(cfg.dailyLimit) || 4000))}">
                 <label>التبريد بين رسائل العضو (بالملي ثانية)</label>
@@ -1462,7 +1463,7 @@ app.post('/save/:guildId/ai', checkAuth, async (req, res) => {
     const maxHistory = Math.min(12, Math.max(0, Number(req.body.maxHistory) || 4));
     const maxOutputTokens = Math.min(600, Math.max(40, Number(req.body.maxOutputTokens) || 220));
     const channelId = String(req.body.channelId || '').trim();
-    const allowedModels = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile'];
+    const allowedModels = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'groq/compound-mini', 'groq/compound'];
     const model = allowedModels.includes(req.body.model) ? req.body.model : 'llama-3.1-8b-instant';
     if (!guild.channels.cache.has(channelId)) return res.status(400).send('اختر رومًا صحيحة للدردشة.');
     await AIConfig.findOneAndUpdate({ guildId }, { $set: { enabled: req.body.enabled === 'on', memoryEnabled: req.body.memoryEnabled === 'on', channelId, model, dailyLimit, cooldownMs, maxHistory, maxOutputTokens, systemPrompt: String(req.body.systemPrompt || '').trim().slice(0, 1200) || 'أجب بالعربية السليمة وباختصار.' } }, { upsert: true, new: true });
@@ -2568,6 +2569,57 @@ app.post('/save/:guildId/mod', checkAuth, async (req, res) => {
 // ==========================================
 
 client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) return;
+
+    // --- [ أوامر الإدارة عبر منشن البوت ] ---
+    if (client.user && msg.mentions.has(client.user.id)) {
+        const adminText = msg.content.replace(new RegExp(`<@!?${client.user.id}>`, 'g'), '').trim();
+        const target = msg.mentions.members.filter(member => member.id !== client.user.id).first();
+        const isAdmin = msg.member.permissions.has(PermissionFlagsBits.Administrator);
+        if (!isAdmin) return msg.reply({ content: 'هذا الأمر مخصص لمن لديهم صلاحية Administrator فقط.', allowedMentions: { repliedUser: false } }).catch(() => {});
+
+        try {
+            const lower = adminText.toLowerCase();
+            const success = (text) => msg.reply({ embeds: [new EmbedBuilder().setColor(0x00c853).setDescription(`✅ ${text}`).setTimestamp()], allowedMentions: { repliedUser: false } });
+            if (/^(قفل|lock|اقفل)\b/.test(lower)) {
+                if (!msg.channel.permissionsFor(msg.guild.members.me).has(PermissionFlagsBits.ManageChannels)) return msg.reply('لا أملك صلاحية Manage Channels.');
+                await msg.channel.permissionOverwrites.edit(msg.guild.roles.everyone, { SendMessages: false });
+                return success('تم قفل الروم بنجاح.');
+            }
+            if (/^(فتح|unlock|افتح)\b/.test(lower)) {
+                if (!msg.channel.permissionsFor(msg.guild.members.me).has(PermissionFlagsBits.ManageChannels)) return msg.reply('لا أملك صلاحية Manage Channels.');
+                await msg.channel.permissionOverwrites.edit(msg.guild.roles.everyone, { SendMessages: null });
+                return success('تم فتح الروم بنجاح.');
+            }
+            if (/^(كتم|timeout|اسكت)\b/.test(lower)) {
+                if (!target) return msg.reply('منشن العضو المطلوب كتمه.');
+                const duration = parseDuration(adminText.split(/\s+/).find(v => /^\d+(s|m|h|d|w)$/i.test(v)) || '10m');
+                if (!duration) return msg.reply('اكتب مدة صحيحة مثل `10m` أو `1h`.');
+                if (!msg.guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers)) return msg.reply('لا أملك صلاحية Moderate Members.');
+                await target.timeout(duration.milliseconds, `طلب إداري من ${msg.author.tag}`);
+                return success(`تم كتم ${target} لمدة ${duration.text}.`);
+            }
+            if (/^(فك الكتم|untimeout|فككتم)\b/.test(lower)) {
+                if (!target) return msg.reply('منشن العضو المطلوب فك كتمه.');
+                await target.timeout(null, `طلب إداري من ${msg.author.tag}`);
+                return success(`تم فك كتم ${target}.`);
+            }
+            if (/^(حظر|ban|احظر)\b/.test(lower)) {
+                if (!target) return msg.reply('منشن العضو المطلوب حظره.');
+                if (!msg.guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) return msg.reply('لا أملك صلاحية Ban Members.');
+                await target.ban({ reason: `طلب إداري من ${msg.author.tag}` });
+                return success('تم حظر العضو بنجاح.');
+            }
+            if (/^(طرد|kick|اطرد)\b/.test(lower)) {
+                if (!target) return msg.reply('منشن العضو المطلوب طرده.');
+                if (!msg.guild.members.me.permissions.has(PermissionFlagsBits.KickMembers)) return msg.reply('لا أملك صلاحية Kick Members.');
+                await target.kick(`طلب إداري من ${msg.author.tag}`);
+                return success('تم طرد العضو بنجاح.');
+            }
+        } catch (err) {
+            console.error('[Mention Admin Error]', err);
+            return msg.reply('تعذر تنفيذ الأمر. تأكد من صلاحيات البوت وأن رتبة البوت أعلى من العضو.').catch(() => {});
+        }
+    }
 
     // --- [ نظام اختصارات الأوامر الإدارية المطور ] ---
     try {
