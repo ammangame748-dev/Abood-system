@@ -402,10 +402,11 @@ async function reserveAIRequest(guildId, dailyLimit) {
 async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
     if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is missing');
     const memory = config.memoryEnabled ? await AIMemory.findOne({ guildId, userId }).lean() : null;
+    const historyLimit = forceWeb ? 1 : (Number(config.maxHistory) || 0);
     const history = (memory?.messages || [])
-        .map(item => ({ role: String(item.role || ''), content: String(item.content || '') }))
+        .map(item => ({ role: String(item.role || ''), content: String(item.content || '').slice(0, forceWeb ? 500 : 1500) }))
         .filter(item => ['system', 'user', 'assistant'].includes(item.role) && item.content.trim())
-        .slice(-(Number(config.maxHistory) || 0));
+        .slice(-historyLimit);
     const cleanContent = String(content).replace(/\s+/g, ' ').trim().slice(0, 1200);
     const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, 1200);
     const currentDate = new Intl.DateTimeFormat('ar', { dateStyle: 'full', timeZone: 'Asia/Amman' }).format(new Date());
@@ -417,8 +418,8 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
     const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
         model: (forceWeb || config.webSearchEnabled || /اليوم|حالي|آخر|اخر|أحدث|احدث|2026|الآن|الان|أخبار|اخبار|منذ|هذا الأسبوع|هذا الشهر/i.test(cleanContent)) ? 'groq/compound-mini' : (config.model || 'llama-3.1-8b-instant'),
         messages,
-        temperature: 0.45,
-        max_completion_tokens: Number(config.maxOutputTokens) || 220
+        temperature: forceWeb ? 0.2 : 0.45,
+        max_completion_tokens: forceWeb ? 120 : (Number(config.maxOutputTokens) || 220)
     }, {
         timeout: 30000,
         headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }
@@ -3608,6 +3609,7 @@ client.on('interactionCreate', async (interaction) => {
                 return interaction.editReply({ embeds: [embed], components: [] });
             } catch (err) {
                 console.error('[AI Web Menu Error]', err?.response?.data || err);
+                if (err?.response?.status === 429) return interaction.editReply({ content: 'البحث مشغول حاليًا بسبب حد Groq المؤقت. جرّب بعد 10 ثوانٍ.', embeds: [], components: [] });
                 return interaction.editReply({ content: 'تعذر البحث في الويب الآن.', embeds: [], components: [] });
             }
         }
