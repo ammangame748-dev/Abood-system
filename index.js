@@ -450,7 +450,7 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
         { role: 'user', content: cleanContent }
     ];
     const payload = {
-        model: config.model || 'llama-3.1-8b-instant',
+        model: 'llama-3.3-70b-versatile',
         messages,
         temperature: useWeb ? 0.25 : 0.45,
         max_completion_tokens: Number(config.maxOutputTokens) || 220
@@ -1468,6 +1468,7 @@ app.get('/manage/:guildId/ai', checkAuth, async (req, res) => {
     const defaults = { enabled: false, channelId: '', model: 'llama-3.1-8b-instant', dailyLimit: 4000, cooldownMs: 8000, maxHistory: 4, maxOutputTokens: 220, memoryEnabled: true, webSearchEnabled: false, systemPrompt: 'أنت مساعد ذكي وودود داخل سيرفر Discord. أجب بالعربية السليمة غالبًا وباختصار وبدون اختلاق معلومات.' };
     const saved = await AIConfig.findOne({ guildId: g.id });
     const cfg = { ...defaults, ...(saved?.toObject?.() || saved || {}) };
+    if (!['llama-3.1-8b-instant', 'llama-3.3-70b-versatile'].includes(cfg.model)) cfg.model = 'llama-3.3-70b-versatile';
     const usage = await AIUsage.findOne({ guildId: g.id, dateKey: aiDateKey() });
     const channels = [...g.channels.cache.values()].filter(c => c.type === ChannelType.GuildText).sort((a, b) => a.position - b.position);
     const options = channels.map(c => `<option value="${c.id}" ${cfg.channelId === c.id ? 'selected' : ''}>#${c.name}</option>`).join('');
@@ -1485,7 +1486,7 @@ app.get('/manage/:guildId/ai', checkAuth, async (req, res) => {
                 <label>روم الدردشة</label>
                 <select name="channelId" required><option value="">اختر روم الدردشة</option>${options}</select>
                 <label>النموذج</label>
-                <select name="model"><option value="llama-3.1-8b-instant" ${cfg.model === 'llama-3.1-8b-instant' ? 'selected' : ''}>Llama 3.1 8B Instant</option><option value="llama-3.3-70b-versatile" ${cfg.model === 'llama-3.3-70b-versatile' ? 'selected' : ''}>Llama 3.3 70B</option><option value="groq/compound-mini" ${cfg.model === 'groq/compound-mini' ? 'selected' : ''}>Compound Mini - بحث مباشر</option><option value="groq/compound" ${cfg.model === 'groq/compound' ? 'selected' : ''}>Compound - بحث مباشر متقدم</option></select>
+                <select name="model"><option value="llama-3.1-8b-instant" ${cfg.model === 'llama-3.1-8b-instant' ? 'selected' : ''}>Llama 3.1 8B Instant</option><option value="llama-3.3-70b-versatile" ${cfg.model === 'llama-3.3-70b-versatile' ? 'selected' : ''}>Llama 3.3 70B</option></select>
                 <label>الحد اليومي للطلبات</label>
                 <input type="number" name="dailyLimit" min="1" max="4000" value="${Math.min(4000, Math.max(1, Number(cfg.dailyLimit) || 4000))}">
                 <label>التبريد بين رسائل العضو (بالملي ثانية)</label>
@@ -1513,8 +1514,8 @@ app.post('/save/:guildId/ai', checkAuth, async (req, res) => {
     const maxHistory = Math.min(12, Math.max(0, Number(req.body.maxHistory) || 4));
     const maxOutputTokens = Math.min(600, Math.max(40, Number(req.body.maxOutputTokens) || 220));
     const channelId = String(req.body.channelId || '').trim();
-    const allowedModels = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'groq/compound-mini', 'groq/compound'];
-    const model = allowedModels.includes(req.body.model) ? req.body.model : 'llama-3.1-8b-instant';
+    const allowedModels = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile'];
+    const model = allowedModels.includes(req.body.model) ? req.body.model : 'llama-3.3-70b-versatile';
     if (!guild.channels.cache.has(channelId)) return res.status(400).send('اختر رومًا صحيحة للدردشة.');
     await AIConfig.findOneAndUpdate({ guildId }, { $set: { enabled: req.body.enabled === 'on', memoryEnabled: req.body.memoryEnabled === 'on', webSearchEnabled: req.body.webSearchEnabled === 'on', channelId, model, dailyLimit, cooldownMs, maxHistory, maxOutputTokens, systemPrompt: String(req.body.systemPrompt || '').trim().slice(0, 1200) || 'أجب بالعربية السليمة وباختصار.' } }, { upsert: true, new: true });
     res.redirect(`/manage/${guildId}/ai`);
