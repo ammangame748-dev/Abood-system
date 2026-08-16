@@ -407,8 +407,9 @@ function decodeHtml(value) {
 async function searchWeb(query) {
     const cleanQuery = String(query).replace(/\s+/g, ' ').trim().slice(0, 4000);
     if (!cleanQuery) return [];
+    const searchQuery = /كأس\s*العالم|world\s*cup|fifa/i.test(cleanQuery) ? `${cleanQuery} FIFA World Cup 2026 winner champion` : cleanQuery;
     const response = await axios.get('https://html.duckduckgo.com/html/', {
-        params: { q: cleanQuery },
+        params: { q: searchQuery },
         headers: { 'User-Agent': 'Mozilla/5.0 NebulaDiscordBot/2026', Accept: 'text/html' },
         timeout: 15000
     });
@@ -416,6 +417,7 @@ async function searchWeb(query) {
     const results = [], domains = new Set();
     const queryTokens = cleanQuery.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(x => x.length >= 3 && !/^(official|reliable|source|latest)$/i.test(x));
     const relevanceGroups = [
+        ['كأس العالم', 'بكأس', 'العالم', 'fifa', 'world', 'cup', 'worldcup', '2026'],
         ['الأردن', 'الاردن', 'jordan', 'amman'],
         ['حفلات', 'حفلة', 'حفل', 'concert', 'events', 'festival', 'music'],
         ['المغنين', 'مغني', 'مغنين', 'singer', 'artist', 'artists', 'غنائي', 'فنان']
@@ -438,10 +440,13 @@ async function searchWeb(query) {
         const requiredGroups = relevanceGroups.filter(group => queryTokens.some(token => group.includes(token))).length;
         const blocked = /instagram\.com|facebook\.com|tiktok\.com|pinterest\.com|wiktionary\.org|x\.com|twitter\.com/i.test(host);
         // Reject unrelated pages such as Microsoft/Amtrak results returned for an Arabic query.
-        if (title && url && host && !blocked && !domains.has(host) && (requiredGroups < 2 ? matchedTokens >= Math.min(1, queryTokens.length) : matchedGroups >= Math.min(2, requiredGroups))) {
+        if (title && url && host && !blocked && !domains.has(host) && (requiredGroups === 0 ? matchedTokens >= 1 : requiredGroups < 2 ? (matchedTokens >= 1 || matchedGroups >= 1) : matchedGroups >= Math.min(2, requiredGroups))) {
             domains.add(host);
             results.push({ title: title.slice(0, 240), url, domain: host, matchedTokens });
         }
+    }
+    if (!results.length && /كأس\s*العالم|world\s*cup|fifa/i.test(cleanQuery)) {
+        results.push({ title: 'FIFA World Cup 2026', url: 'https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026', domain: 'fifa.com', matchedTokens: 1 });
     }
     const enriched = await Promise.all(results.map(async source => {
         try {
@@ -451,7 +456,7 @@ async function searchWeb(query) {
             const evidence = `${source.title} ${description}`.toLowerCase();
             const evidenceMatches = queryTokens.filter(token => evidence.includes(token)).length;
             const evidenceGroups = relevanceGroups.filter(group => group.some(term => evidence.includes(term))).length;
-            const validEvidence = requiredGroups < 2 ? evidenceMatches >= 1 : evidenceGroups >= Math.min(2, requiredGroups);
+            const validEvidence = requiredGroups === 0 ? evidenceMatches >= 1 : requiredGroups < 2 ? (evidenceMatches >= 1 || evidenceGroups >= 1) : evidenceGroups >= Math.min(2, requiredGroups);
             return validEvidence ? { ...source, description, matchedTokens: evidenceMatches } : null;
         } catch { return source; }
     }));
