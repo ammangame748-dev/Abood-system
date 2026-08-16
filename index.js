@@ -408,8 +408,8 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
         .map(item => ({ role: String(item.role || ''), content: String(item.content || '').slice(0, useWeb ? 0 : 1200) }))
         .filter(item => ['system', 'user', 'assistant'].includes(item.role) && item.content.trim())
         .slice(-historyLimit);
-    const cleanContent = String(content).replace(/\s+/g, ' ').trim().slice(0, useWeb ? 500 : 1200);
-    const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, useWeb ? 350 : 1200);
+    const cleanContent = String(content).replace(/\s+/g, ' ').trim().slice(0, 4000);
+    const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, useWeb ? 500 : 1200);
     const currentDate = new Intl.DateTimeFormat('ar', { dateStyle: 'full', timeZone: 'Asia/Amman' }).format(new Date());
     const messages = [
         { role: 'system', content: `${systemPrompt}\nالتاريخ الحالي المؤكد هو: ${currentDate}، والسنة الحالية هي 2026. لا تقل إنك محدث حتى 2023 أو أي سنة قديمة. إذا سُئلت عن أحدث خبر أو معلومة ولا تملك مصدرًا مباشرًا، صرّح بوضوح أنك لا تستطيع التحقق بدل اختلاق إجابة. راجع الإملاء والنحو قبل الرد، واستفد من معلومات المستخدم السابقة دون كشفها لغيره.` },
@@ -420,7 +420,7 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
         model: useWeb ? 'groq/compound-mini' : (config.model || 'llama-3.1-8b-instant'),
         messages,
         temperature: useWeb ? 0.2 : 0.45,
-        max_completion_tokens: useWeb ? 80 : (Number(config.maxOutputTokens) || 220)
+        max_completion_tokens: useWeb ? 256 : (Number(config.maxOutputTokens) || 220)
     }, {
         timeout: 30000,
         headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }
