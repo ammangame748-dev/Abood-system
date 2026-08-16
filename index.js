@@ -47,6 +47,24 @@ const GeneralCommandConfig = mongoose.model('GeneralCommandConfig', new mongoose
     }
 }));
 
+const AIConfig = mongoose.model('AIConfig', new mongoose.Schema({
+    guildId: { type: String, unique: true, index: true },
+    enabled: { type: Boolean, default: false },
+    channelId: { type: String, default: '' },
+    model: { type: String, default: 'llama-3.1-8b-instant' },
+    dailyLimit: { type: Number, default: 4000, min: 1, max: 14400 },
+    cooldownMs: { type: Number, default: 8000, min: 1000, max: 300000 },
+    maxHistory: { type: Number, default: 4, min: 0, max: 12 },
+    maxOutputTokens: { type: Number, default: 220, min: 40, max: 600 },
+    systemPrompt: { type: String, default: 'أنت مساعد ودود داخل سيرفر Discord. أجب بالعربية غالبًا وباختصار وبدون إطالة.' }
+}));
+
+const AIUsage = mongoose.model('AIUsage', new mongoose.Schema({
+    guildId: { type: String, index: true },
+    dateKey: { type: String, index: true },
+    count: { type: Number, default: 0 }
+}, { timestamps: true }));
+
 const KickConfig = mongoose.model('KickConfig', new mongoose.Schema({
     guildId: String,
     streamers: [{
@@ -337,6 +355,54 @@ function parseDuration(input) {
     return Number.isFinite(ms)&&ms>=5000&&ms<=2419200000?{milliseconds:ms,text:m[0]}:null;
 }
 
+const aiCooldowns = new Map();
+const aiHistories = new Map();
+
+function aiDateKey() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function aiHistoryKey(guildId, userId) {
+    return `${guildId}:${userId}`;
+}
+
+async function reserveAIRequest(guildId, dailyLimit) {
+    const dateKey = aiDateKey();
+    const usage = await AIUsage.findOneAndUpdate(
+        { guildId, dateKey },
+        { $inc: { count: 1 } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    if (usage.count <= dailyLimit) return usage;
+    await AIUsage.updateOne({ _id: usage._id, count: usage.count }, { $inc: { count: -1 } }).catch(() => {});
+    return null;
+}
+
+async function askGroq({ guildId, userId, content, config }) {
+    if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is missing');
+    const key = aiHistoryKey(guildId, userId);
+    const history = aiHistories.get(key) || [];
+    const messages = [
+        { role: 'system', content: String(config.systemPrompt || 'أجب بالعربية وباختصار.') .slice(0, 1200) },
+        ...history.slice(-(Number(config.maxHistory) || 0)),
+        { role: 'user', content: String(content).slice(0, 1200) }
+    ];
+    const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+        model: config.model || 'llama-3.1-8b-instant',
+        messages,
+        temperature: 0.65,
+        max_tokens: Number(config.maxOutputTokens) || 220
+    }, {
+        timeout: 30000,
+        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }
+    });
+    const answer = String(response.data?.choices?.[0]?.message?.content || '').trim();
+    if (!answer) throw new Error('Groq returned an empty response');
+    const nextHistory = [...history, { role: 'user', content: String(content).slice(0, 1200) }, { role: 'assistant', content: answer.slice(0, 1500) }];
+    aiHistories.set(key, nextHistory.slice(-Math.max(0, (Number(config.maxHistory) || 0) * 2)));
+    return answer.slice(0, 1900);
+}
+
 function getEmojiDisplay(guild, emojiId) {
     if (!emojiId) return '❓';
     const em = guild.emojis.cache.get(emojiId);
@@ -595,6 +661,10 @@ function ui(guild, active, content) {
         <a class="${active === 'generalcmds' ? 'active' : ''}" href="/manage/${guild.id}/generalcmds">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v12H4z"/><path d="M8 20h8M12 16v4"/></svg>
             الأوامر العامة
+        </a>
+        <a class="${active === 'ai' ? 'active' : ''}" href="/manage/${guild.id}/ai">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-4 12.74V18h8v-3.26A7 7 0 0 0 12 2z"/><path d="M9 22h6M9 18h6"/></svg>
+            دردشة AI
         </a>
         <a class="${active === 'giverole' ? 'active' : ''}" href="/manage/${guild.id}/give-role">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.1L21 9l-4.7 4.5L17.5 20 12 16.8 6.5 20l1.2-6.5L3 9l6.6-.9L12 2z"/></svg>
@@ -1250,7 +1320,6 @@ app.get('/manage/:guildId/generalcmds', checkAuth, async (req, res) => {
     if (!g) return res.redirect('/dashboard');
 
     const defaults = {
-        profile: { enabled: true, shortcut: '!profile', channelIds: [] },
         avatar: { enabled: true, shortcut: '!avatar', channelIds: [] },
         banner: { enabled: true, shortcut: '!banner', channelIds: [] },
         server: { enabled: true, shortcut: '!server', channelIds: [] }
@@ -1259,7 +1328,7 @@ app.get('/manage/:guildId/generalcmds', checkAuth, async (req, res) => {
     const commands = {};
     for (const key of Object.keys(defaults)) commands[key] = { ...defaults[key], ...(saved?.commands?.[key] || {}) };
 
-    const labels = { profile: 'بروفايل العضو', avatar: 'صورة الحساب', banner: 'بنر الحساب', server: 'معلومات السيرفر' };
+    const labels = { avatar: 'صورة الحساب', banner: 'بنر الحساب', server: 'معلومات السيرفر' };
     const channels = [...g.channels.cache.values()]
         .filter(c => c.type === ChannelType.GuildText)
         .sort((a, b) => a.position - b.position);
@@ -1301,7 +1370,7 @@ app.post('/save/:guildId/generalcmds', checkAuth, async (req, res) => {
     const guild = client.guilds.cache.get(guildId);
     if (!guild) return res.redirect('/dashboard');
 
-    const keys = ['profile', 'avatar', 'banner', 'server'];
+    const keys = ['avatar', 'banner', 'server'];
     const commands = {};
     const shortcuts = [];
     for (const key of keys) {
@@ -1319,6 +1388,63 @@ app.post('/save/:guildId/generalcmds', checkAuth, async (req, res) => {
 
     await GeneralCommandConfig.findOneAndUpdate({ guildId }, { $set: { commands } }, { upsert: true, new: true });
     res.redirect(`/manage/${guildId}/generalcmds`);
+});
+
+// --- [ Dashboard - AI Chat ] ---
+app.get('/manage/:guildId/ai', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    if (!g) return res.redirect('/dashboard');
+    const defaults = { enabled: false, channelId: '', model: 'llama-3.1-8b-instant', dailyLimit: 4000, cooldownMs: 8000, maxHistory: 4, maxOutputTokens: 220, systemPrompt: 'أنت مساعد ودود داخل سيرفر Discord. أجب بالعربية غالبًا وباختصار وبدون إطالة.' };
+    const saved = await AIConfig.findOne({ guildId: g.id });
+    const cfg = { ...defaults, ...(saved?.toObject?.() || saved || {}) };
+    const usage = await AIUsage.findOne({ guildId: g.id, dateKey: aiDateKey() });
+    const channels = [...g.channels.cache.values()].filter(c => c.type === ChannelType.GuildText).sort((a, b) => a.position - b.position);
+    const options = channels.map(c => `<option value="${c.id}" ${cfg.channelId === c.id ? 'selected' : ''}>#${c.name}</option>`).join('');
+    const content = `
+        <div class="card">
+            <h2 style="margin-bottom:10px;">دردشة AI</h2>
+            <p style="color:var(--text-muted); font-size:13px; margin-bottom:18px;">عند التفعيل، يرد البوت على رسائل الأعضاء داخل الروم المحددة فقط. الأوامر الإدارية تبقى منفصلة.</p>
+            <div style="padding:12px; border-radius:10px; margin-bottom:18px; background:${process.env.GROQ_API_KEY ? 'rgba(0,200,83,.12)' : 'rgba(230,57,70,.12)'}; color:${process.env.GROQ_API_KEY ? '#00c853' : '#e63946'};">
+                ${process.env.GROQ_API_KEY ? 'مفتاح Groq موجود في متغيرات البيئة.' : 'لم يتم العثور على GROQ_API_KEY في متغيرات البيئة.'}
+            </div>
+            <form method="POST" action="/save/${g.id}/ai">
+                <label style="display:flex; align-items:center; gap:8px; margin-bottom:18px;"><input type="checkbox" name="enabled" ${cfg.enabled ? 'checked' : ''} style="width:18px; height:18px;"> تفعيل دردشة AI</label>
+                <label>روم الدردشة</label>
+                <select name="channelId" required><option value="">اختر روم الدردشة</option>${options}</select>
+                <label>النموذج</label>
+                <select name="model"><option value="llama-3.1-8b-instant" ${cfg.model === 'llama-3.1-8b-instant' ? 'selected' : ''}>Llama 3.1 8B Instant</option><option value="llama-3.3-70b-versatile" ${cfg.model === 'llama-3.3-70b-versatile' ? 'selected' : ''}>Llama 3.3 70B</option></select>
+                <label>الحد اليومي للطلبات</label>
+                <input type="number" name="dailyLimit" min="1" max="4000" value="${Math.min(4000, Math.max(1, Number(cfg.dailyLimit) || 4000))}">
+                <label>التبريد بين رسائل العضو (بالملي ثانية)</label>
+                <input type="number" name="cooldownMs" min="1000" max="300000" value="${Math.min(300000, Math.max(1000, Number(cfg.cooldownMs) || 8000))}">
+                <label>عدد رسائل الذاكرة القصيرة</label>
+                <input type="number" name="maxHistory" min="0" max="12" value="${Math.min(12, Math.max(0, Number(cfg.maxHistory) || 4))}">
+                <label>الحد الأقصى لطول الرد</label>
+                <input type="number" name="maxOutputTokens" min="40" max="600" value="${Math.min(600, Math.max(40, Number(cfg.maxOutputTokens) || 220))}">
+                <label>تعليمات شخصية البوت</label>
+                <textarea name="systemPrompt" rows="4" maxlength="1200">${cfg.systemPrompt || defaults.systemPrompt}</textarea>
+                <p style="color:var(--text-muted); font-size:12px;">استهلاك اليوم: ${usage?.count || 0} / ${cfg.dailyLimit || 4000} طلب.</p>
+                <button type="submit" class="btn-save" style="font-size:16px; padding:15px;">حفظ إعدادات AI</button>
+            </form>
+        </div>
+    `;
+    res.send(ui(g, 'ai', content));
+});
+
+app.post('/save/:guildId/ai', checkAuth, async (req, res) => {
+    const guildId = req.params.guildId;
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return res.redirect('/dashboard');
+    const dailyLimit = Math.min(4000, Math.max(1, Number(req.body.dailyLimit) || 4000));
+    const cooldownMs = Math.min(300000, Math.max(1000, Number(req.body.cooldownMs) || 8000));
+    const maxHistory = Math.min(12, Math.max(0, Number(req.body.maxHistory) || 4));
+    const maxOutputTokens = Math.min(600, Math.max(40, Number(req.body.maxOutputTokens) || 220));
+    const channelId = String(req.body.channelId || '').trim();
+    const allowedModels = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile'];
+    const model = allowedModels.includes(req.body.model) ? req.body.model : 'llama-3.1-8b-instant';
+    if (!guild.channels.cache.has(channelId)) return res.status(400).send('اختر رومًا صحيحة للدردشة.');
+    await AIConfig.findOneAndUpdate({ guildId }, { $set: { enabled: req.body.enabled === 'on', channelId, model, dailyLimit, cooldownMs, maxHistory, maxOutputTokens, systemPrompt: String(req.body.systemPrompt || '').trim().slice(0, 1200) || 'أجب بالعربية وباختصار.' } }, { upsert: true, new: true });
+    res.redirect(`/manage/${guildId}/ai`);
 });
 
 // ==========================================
@@ -2479,10 +2605,39 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
         }
     } catch (e) {}
 
+    // --- [ أمر !profile الثابت ] ---
+    if (msg.content.trim().split(/ +/)[0] === '!profile') {
+        try {
+            const profileArgs = msg.content.trim().split(/ +/);
+            const mentionedMember = msg.mentions.members.first();
+            const requestedMember = mentionedMember || (profileArgs[1] ? await msg.guild.members.fetch(profileArgs[1]).catch(() => null) : null);
+            const member = requestedMember || msg.member;
+            const user = member.user;
+            const avatar = user.displayAvatarURL({ extension: 'png', size: 512 });
+            const profile = new EmbedBuilder()
+                .setColor(0x1e90ff)
+                .setAuthor({ name: `ملف ${user.tag}`, iconURL: avatar })
+                .setThumbnail(avatar)
+                .addFields(
+                    { name: 'العضو', value: `<@${user.id}>`, inline: true },
+                    { name: 'معرّف العضو', value: `\`${user.id}\``, inline: true },
+                    { name: 'تاريخ إنشاء الحساب', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:D>`, inline: true },
+                    { name: 'تاريخ دخول السيرفر', value: member.joinedTimestamp ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:D>` : 'غير معروف', inline: true },
+                    { name: 'عدد الرتب', value: `${Math.max(0, member.roles.cache.size - 1)}`, inline: true }
+                )
+                .setTimestamp();
+            const banner = user.bannerURL?.({ extension: 'png', size: 1024 });
+            if (banner) profile.setImage(banner);
+            return msg.reply({ embeds: [profile] });
+        } catch (err) {
+            console.error('[Profile Command Error]', err);
+            return msg.reply('تعذر إنشاء بطاقة البروفايل الآن.').catch(() => {});
+        }
+    }
+
     // --- [ الأوامر العامة المصورة ] ---
     try {
         const defaults = {
-            profile: { enabled: true, shortcut: '!profile', channelIds: [] },
             avatar: { enabled: true, shortcut: '!avatar', channelIds: [] },
             banner: { enabled: true, shortcut: '!banner', channelIds: [] },
             server: { enabled: true, shortcut: '!server', channelIds: [] }
@@ -2550,6 +2705,31 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
         }
     } catch (err) {
         console.error('[General Commands Error]', err);
+    }
+
+    // --- [ دردشة AI في الروم المحددة ] ---
+    try {
+        const aiCfg = await AIConfig.findOne({ guildId: msg.guild.id });
+        if (aiCfg?.enabled && aiCfg.channelId === msg.channel.id && msg.content.trim()) {
+            const cooldownKey = `${msg.guild.id}:${msg.author.id}`;
+            const lastRequest = aiCooldowns.get(cooldownKey) || 0;
+            if (Date.now() - lastRequest < Number(aiCfg.cooldownMs || 8000)) return;
+
+            const reserved = await reserveAIRequest(msg.guild.id, Number(aiCfg.dailyLimit || 4000));
+            if (!reserved) {
+                return msg.reply({ content: 'وصل البوت إلى حد طلبات الذكاء الاصطناعي اليوم. حاول غدًا.', allowedMentions: { repliedUser: false } }).catch(() => {});
+            }
+
+            aiCooldowns.set(cooldownKey, Date.now());
+            await msg.channel.sendTyping().catch(() => {});
+            const answer = await askGroq({ guildId: msg.guild.id, userId: msg.author.id, content: msg.content, config: aiCfg });
+            return msg.reply({ content: answer, allowedMentions: { repliedUser: false } }).catch(() => {});
+        }
+    } catch (err) {
+        const status = err?.response?.status;
+        console.error('[AI Error]', status || err.message || err);
+        if (status === 429) msg.reply({ content: 'الخدمة مشغولة حاليًا، جرّب بعد قليل.', allowedMentions: { repliedUser: false } }).catch(() => {});
+        else if (err.message === 'GROQ_API_KEY is missing') msg.reply({ content: 'لم يتم ضبط مفتاح AI في متغيرات البيئة.', allowedMentions: { repliedUser: false } }).catch(() => {});
     }
 
     // --- [ نظام الاقتراحات ] ---
