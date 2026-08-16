@@ -405,19 +405,22 @@ function decodeHtml(value) {
 }
 
 async function searchWeb(query) {
-    const response = await axios.get('https://html.duckduckgo.com/html/', {
-        params: { q: String(query).replace(/\s+/g, ' ').trim().slice(0, 900) },
+    const cleanQuery = String(query).replace(/\s+/g, ' ').trim().slice(0, 4000);
+    const response = await axios.get('https://www.bing.com/search', {
+        params: { format: 'rss', q: cleanQuery },
         headers: { 'User-Agent': 'Mozilla/5.0 NebulaDiscordBot/2026' },
         timeout: 15000
     });
-    const html = String(response.data || '');
+    const xml = String(response.data || '');
     const results = [];
-    const pattern = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-    let match;
-    while ((match = pattern.exec(html)) && results.length < 5) {
-        const url = decodeHtml(match[1]);
-        const title = decodeHtml(match[2]);
-        if (url && title) results.push({ title, url });
+    const itemPattern = /<item>([\s\S]*?)<\/item>/gi;
+    let item;
+    while ((item = itemPattern.exec(xml)) && results.length < 5) {
+        const titleMatch = item[1].match(/<title>([\s\S]*?)<\/title>/i);
+        const linkMatch = item[1].match(/<link>([\s\S]*?)<\/link>/i);
+        const title = decodeHtml(titleMatch?.[1]);
+        const url = decodeHtml(linkMatch?.[1]);
+        if (title && url) results.push({ title, url });
     }
     return results;
 }
@@ -441,7 +444,7 @@ async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
             console.error(`[AI DEBUG ${AI_BUILD_VERSION}] searchWeb failed status=${searchError?.response?.status || 'unknown'} message=${searchError?.response?.data?.error?.message || searchError.message}`);
         }
     }
-    const sourceContext = webSources.length ? `\nمصادر الويب الحالية:\n${webSources.map((s, i) => `${i + 1}. ${s.title} - ${s.url}`).join('\n')}` : '';
+    const sourceContext = webSources.length ? `\nمصادر الويب الحالية:\n${webSources.map((s, i) => `${i + 1}. ${s.title} - ${s.url}`).join('\n')}` : '\nلم تظهر نتائج بحث موثوقة؛ لا تخمّن الإجابة واذكر أنك لم تستطع التحقق.';
     const systemPrompt = String(config.systemPrompt || 'أجب بالعربية السليمة وباختصار.').slice(0, useWeb ? 500 : 1200);
     const currentDate = new Intl.DateTimeFormat('ar', { dateStyle: 'full', timeZone: 'Asia/Amman' }).format(new Date());
     const messages = [
