@@ -57,6 +57,7 @@ const AIConfig = mongoose.model('AIConfig', new mongoose.Schema({
     maxHistory: { type: Number, default: 4, min: 0, max: 12 },
     maxOutputTokens: { type: Number, default: 220, min: 40, max: 600 },
     memoryEnabled: { type: Boolean, default: true },
+    webSearchEnabled: { type: Boolean, default: false },
     systemPrompt: { type: String, default: 'أنت مساعد ذكي وودود داخل سيرفر Discord. أجب بالعربية السليمة غالبًا، راجع الإملاء والنحو قبل الرد، افهم سياق كلام المستخدم، ولا تخترع معلومات. كن واضحًا ومختصرًا ونسّق الرد على شكل فقرات قصيرة.' }
 }));
 
@@ -366,6 +367,17 @@ function parseDuration(input) {
 
 const aiCooldowns = new Map();
 const aiHistories = new Map();
+const aiResponseContexts = new Map();
+
+function aiWebComponents(nonce) {
+    return [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
+        .setCustomId(`ai_web:${nonce}`)
+        .setPlaceholder('خيارات البحث في الويب')
+        .addOptions(
+            { label: 'بحث في الويب الآن', value: 'search', description: 'تحديث الإجابة بمصادر حديثة' },
+            { label: 'بدون بحث', value: 'no_search', description: 'استخدام المعرفة والذاكرة فقط' }
+        ))];
+}
 
 function aiDateKey() {
     return new Date().toISOString().slice(0, 10);
@@ -387,7 +399,7 @@ async function reserveAIRequest(guildId, dailyLimit) {
     return null;
 }
 
-async function askGroq({ guildId, userId, content, config }) {
+async function askGroq({ guildId, userId, content, config, forceWeb = false }) {
     if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY is missing');
     const memory = config.memoryEnabled ? await AIMemory.findOne({ guildId, userId }).lean() : null;
     const history = (memory?.messages || [])
@@ -403,7 +415,7 @@ async function askGroq({ guildId, userId, content, config }) {
         { role: 'user', content: cleanContent }
     ];
     const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-        model: /اليوم|حالي|آخر|اخر|أحدث|احدث|2026|الآن|الان|أخبار|اخبار|منذ|هذا الأسبوع|هذا الشهر/i.test(cleanContent) ? 'groq/compound-mini' : (config.model || 'llama-3.1-8b-instant'),
+        model: (forceWeb || config.webSearchEnabled || /اليوم|حالي|آخر|اخر|أحدث|احدث|2026|الآن|الان|أخبار|اخبار|منذ|هذا الأسبوع|هذا الشهر/i.test(cleanContent)) ? 'groq/compound-mini' : (config.model || 'llama-3.1-8b-instant'),
         messages,
         temperature: 0.45,
         max_completion_tokens: Number(config.maxOutputTokens) || 220
@@ -1416,7 +1428,7 @@ app.post('/save/:guildId/generalcmds', checkAuth, async (req, res) => {
 app.get('/manage/:guildId/ai', checkAuth, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
-    const defaults = { enabled: false, channelId: '', model: 'llama-3.1-8b-instant', dailyLimit: 4000, cooldownMs: 8000, maxHistory: 4, maxOutputTokens: 220, memoryEnabled: true, systemPrompt: 'أنت مساعد ذكي وودود داخل سيرفر Discord. أجب بالعربية السليمة غالبًا وباختصار وبدون اختلاق معلومات.' };
+    const defaults = { enabled: false, channelId: '', model: 'llama-3.1-8b-instant', dailyLimit: 4000, cooldownMs: 8000, maxHistory: 4, maxOutputTokens: 220, memoryEnabled: true, webSearchEnabled: false, systemPrompt: 'أنت مساعد ذكي وودود داخل سيرفر Discord. أجب بالعربية السليمة غالبًا وباختصار وبدون اختلاق معلومات.' };
     const saved = await AIConfig.findOne({ guildId: g.id });
     const cfg = { ...defaults, ...(saved?.toObject?.() || saved || {}) };
     const usage = await AIUsage.findOne({ guildId: g.id, dateKey: aiDateKey() });
@@ -1431,7 +1443,8 @@ app.get('/manage/:guildId/ai', checkAuth, async (req, res) => {
             </div>
             <form method="POST" action="/save/${g.id}/ai">
                 <label style="display:flex; align-items:center; gap:8px; margin-bottom:12px;"><input type="checkbox" name="enabled" ${cfg.enabled ? 'checked' : ''} style="width:18px; height:18px;"> تفعيل دردشة AI</label>
-                <label style="display:flex; align-items:center; gap:8px; margin-bottom:18px;"><input type="checkbox" name="memoryEnabled" ${cfg.memoryEnabled !== false ? 'checked' : ''} style="width:18px; height:18px;"> تفعيل الذاكرة الدائمة لكل مستخدم</label>
+                <label style="display:flex; align-items:center; gap:8px; margin-bottom:12px;"><input type="checkbox" name="memoryEnabled" ${cfg.memoryEnabled !== false ? 'checked' : ''} style="width:18px; height:18px;"> تفعيل الذاكرة الدائمة لكل مستخدم</label>
+                <label style="display:flex; align-items:center; gap:8px; margin-bottom:18px;"><input type="checkbox" name="webSearchEnabled" ${cfg.webSearchEnabled ? 'checked' : ''} style="width:18px; height:18px;"> البحث في الويب لكل سؤال</label>
                 <label>روم الدردشة</label>
                 <select name="channelId" required><option value="">اختر روم الدردشة</option>${options}</select>
                 <label>النموذج</label>
@@ -1466,7 +1479,7 @@ app.post('/save/:guildId/ai', checkAuth, async (req, res) => {
     const allowedModels = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'groq/compound-mini', 'groq/compound'];
     const model = allowedModels.includes(req.body.model) ? req.body.model : 'llama-3.1-8b-instant';
     if (!guild.channels.cache.has(channelId)) return res.status(400).send('اختر رومًا صحيحة للدردشة.');
-    await AIConfig.findOneAndUpdate({ guildId }, { $set: { enabled: req.body.enabled === 'on', memoryEnabled: req.body.memoryEnabled === 'on', channelId, model, dailyLimit, cooldownMs, maxHistory, maxOutputTokens, systemPrompt: String(req.body.systemPrompt || '').trim().slice(0, 1200) || 'أجب بالعربية السليمة وباختصار.' } }, { upsert: true, new: true });
+    await AIConfig.findOneAndUpdate({ guildId }, { $set: { enabled: req.body.enabled === 'on', memoryEnabled: req.body.memoryEnabled === 'on', webSearchEnabled: req.body.webSearchEnabled === 'on', channelId, model, dailyLimit, cooldownMs, maxHistory, maxOutputTokens, systemPrompt: String(req.body.systemPrompt || '').trim().slice(0, 1200) || 'أجب بالعربية السليمة وباختصار.' } }, { upsert: true, new: true });
     res.redirect(`/manage/${guildId}/ai`);
 });
 
@@ -2580,17 +2593,17 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
         try {
             const lower = adminText.toLowerCase();
             const success = (text) => msg.reply({ embeds: [new EmbedBuilder().setColor(0x00c853).setDescription(`✅ ${text}`).setTimestamp()], allowedMentions: { repliedUser: false } });
-            if (/^(قفل|lock|اقفل)\b/.test(lower)) {
+            if (/(^|\s)(قفل|lock|اقفل)(\s|$)/i.test(lower)) {
                 if (!msg.channel.permissionsFor(msg.guild.members.me).has(PermissionFlagsBits.ManageChannels)) return msg.reply('لا أملك صلاحية Manage Channels.');
                 await msg.channel.permissionOverwrites.edit(msg.guild.roles.everyone, { SendMessages: false });
                 return success('تم قفل الروم بنجاح.');
             }
-            if (/^(فتح|unlock|افتح)\b/.test(lower)) {
+            if (/(^|\s)(فتح|unlock|افتح)(\s|$)/i.test(lower)) {
                 if (!msg.channel.permissionsFor(msg.guild.members.me).has(PermissionFlagsBits.ManageChannels)) return msg.reply('لا أملك صلاحية Manage Channels.');
                 await msg.channel.permissionOverwrites.edit(msg.guild.roles.everyone, { SendMessages: null });
                 return success('تم فتح الروم بنجاح.');
             }
-            if (/^(كتم|timeout|اسكت)\b/.test(lower)) {
+            if (/(^|\s)(كتم|timeout|اسكت)(\s|$)/i.test(lower)) {
                 if (!target) return msg.reply('منشن العضو المطلوب كتمه.');
                 const duration = parseDuration(adminText.split(/\s+/).find(v => /^\d+(s|m|h|d|w)$/i.test(v)) || '10m');
                 if (!duration) return msg.reply('اكتب مدة صحيحة مثل `10m` أو `1h`.');
@@ -2598,18 +2611,18 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                 await target.timeout(duration.milliseconds, `طلب إداري من ${msg.author.tag}`);
                 return success(`تم كتم ${target} لمدة ${duration.text}.`);
             }
-            if (/^(فك الكتم|untimeout|فككتم)\b/.test(lower)) {
+            if (/(^|\s)(فك\s+الكتم|untimeout|فككتم)(\s|$)/i.test(lower)) {
                 if (!target) return msg.reply('منشن العضو المطلوب فك كتمه.');
                 await target.timeout(null, `طلب إداري من ${msg.author.tag}`);
                 return success(`تم فك كتم ${target}.`);
             }
-            if (/^(حظر|ban|احظر)\b/.test(lower)) {
+            if (/(^|\s)(حظر|ban|احظر)(\s|$)/i.test(lower)) {
                 if (!target) return msg.reply('منشن العضو المطلوب حظره.');
                 if (!msg.guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) return msg.reply('لا أملك صلاحية Ban Members.');
                 await target.ban({ reason: `طلب إداري من ${msg.author.tag}` });
                 return success('تم حظر العضو بنجاح.');
             }
-            if (/^(طرد|kick|اطرد)\b/.test(lower)) {
+            if (/(^|\s)(طرد|kick|اطرد)(\s|$)/i.test(lower)) {
                 if (!target) return msg.reply('منشن العضو المطلوب طرده.');
                 if (!msg.guild.members.me.permissions.has(PermissionFlagsBits.KickMembers)) return msg.reply('لا أملك صلاحية Kick Members.');
                 await target.kick(`طلب إداري من ${msg.author.tag}`);
@@ -2801,9 +2814,12 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                 .setColor(0x5865f2)
                 .setAuthor({ name: `رد ${msg.author.username}`, iconURL: msg.author.displayAvatarURL({ extension: 'png', size: 128 }) })
                 .setDescription(answer)
-                .setFooter({ text: 'Nebula AI • ذاكرة المستخدم مفعّلة' })
+                .setFooter({ text: 'Nebula AI • اختر منيو البحث لتحديث الإجابة' })
                 .setTimestamp();
-            return msg.reply({ embeds: [aiEmbed], allowedMentions: { repliedUser: false } }).catch(() => {});
+            const nonce = `${msg.id}-${Date.now().toString(36)}`.slice(-80);
+            aiResponseContexts.set(nonce, { userId: msg.author.id, guildId: msg.guild.id, content: msg.content });
+            setTimeout(() => aiResponseContexts.delete(nonce), 15 * 60 * 1000);
+            return msg.reply({ embeds: [aiEmbed], components: aiWebComponents(nonce), allowedMentions: { repliedUser: false } }).catch(() => {});
         }
     } catch (err) {
         const status = err?.response?.status;
@@ -3573,6 +3589,28 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 client.on('interactionCreate', async (interaction) => {
     try {
         if (!interaction.guild) return;
+
+        // --- [ AI Web Search Menu ] ---
+        if (interaction.isStringSelectMenu() && interaction.customId.startsWith('ai_web:')) {
+            const nonce = interaction.customId.split(':')[1];
+            const context = aiResponseContexts.get(nonce);
+            if (!context) return interaction.reply({ content: 'انتهت صلاحية هذا المنيو. أرسل السؤال من جديد.', ephemeral: true });
+            if (interaction.user.id !== context.userId) return interaction.reply({ content: 'هذا المنيو متاح لصاحب السؤال فقط.', ephemeral: true });
+            if (interaction.values[0] === 'no_search') return interaction.update({ components: [] });
+            await interaction.deferUpdate();
+            try {
+                const aiCfg = await AIConfig.findOne({ guildId: interaction.guild.id });
+                if (!aiCfg?.enabled) return interaction.editReply({ components: [] });
+                const reserved = await reserveAIRequest(interaction.guild.id, Number(aiCfg.dailyLimit || 4000));
+                if (!reserved) return interaction.editReply({ content: 'وصل البوت إلى حد AI اليوم.', embeds: [], components: [] });
+                const answer = await askGroq({ guildId: interaction.guild.id, userId: context.userId, content: context.content, config: aiCfg, forceWeb: true });
+                const embed = new EmbedBuilder().setColor(0x00a8ff).setAuthor({ name: `بحث مباشر لـ ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL({ extension: 'png', size: 128 }) }).setDescription(answer).setFooter({ text: 'Nebula AI • تم استخدام البحث في الويب' }).setTimestamp();
+                return interaction.editReply({ embeds: [embed], components: [] });
+            } catch (err) {
+                console.error('[AI Web Menu Error]', err?.response?.data || err);
+                return interaction.editReply({ content: 'تعذر البحث في الويب الآن.', embeds: [], components: [] });
+            }
+        }
 
         // --- [ Giveaway Join Button ] ---
         if (interaction.isButton() && interaction.customId.startsWith('giveaway_join:')) {
