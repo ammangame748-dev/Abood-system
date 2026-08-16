@@ -35,6 +35,15 @@ const AdminCmdConfig = mongoose.model('AdminCmdConfig', new mongoose.Schema({
         ban: { shortcut: { type: String, default: '-ب' }, delUser: { type: Boolean, default: false }, delBot: { type: Boolean, default: false } },
         unban: { shortcut: { type: String, default: '-فب' }, delUser: { type: Boolean, default: false }, delBot: { type: Boolean, default: false } },
         kick: { shortcut: { type: String, default: '-ك' }, delUser: { type: Boolean, default: false }, delBot: { type: Boolean, default: false } }
+    }}));
+
+const GeneralCommandConfig = mongoose.model('GeneralCommandConfig', new mongoose.Schema({
+    guildId: { type: String, unique: true, index: true },
+    commands: {
+        profile: { enabled: { type: Boolean, default: true }, shortcut: { type: String, default: '!profile' }, channelIds: { type: [String], default: [] } },
+        avatar: { enabled: { type: Boolean, default: true }, shortcut: { type: String, default: '!avatar' }, channelIds: { type: [String], default: [] } },
+        banner: { enabled: { type: Boolean, default: true }, shortcut: { type: String, default: '!banner' }, channelIds: { type: [String], default: [] } },
+        server: { enabled: { type: Boolean, default: true }, shortcut: { type: String, default: '!server' }, channelIds: { type: [String], default: [] } }
     }
 }));
 
@@ -580,8 +589,12 @@ function ui(guild, active, content) {
             تنبيهات Kick
         </a>
         <a class="${active === 'admincmds' ? 'active' : ''}" href="/manage/${guild.id}/admincmds">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
             الأوامر الإدارية
+        </a>
+        <a class="${active === 'generalcmds' ? 'active' : ''}" href="/manage/${guild.id}/generalcmds">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v12H4z"/><path d="M8 20h8M12 16v4"/></svg>
+            الأوامر العامة
         </a>
         <a class="${active === 'giverole' ? 'active' : ''}" href="/manage/${guild.id}/give-role">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.1L21 9l-4.7 4.5L17.5 20 12 16.8 6.5 20l1.2-6.5L3 9l6.6-.9L12 2z"/></svg>
@@ -1229,6 +1242,83 @@ app.post('/save/:guildId/admincmds', checkAuth, async (req, res) => {
     };
     await AdminCmdConfig.findOneAndUpdate({ guildId }, { $set: update }, { upsert: true });
     res.redirect(`/manage/${guildId}/admincmds`);
+});
+
+// --- [ Dashboard - General Commands ] ---
+app.get('/manage/:guildId/generalcmds', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    if (!g) return res.redirect('/dashboard');
+
+    const defaults = {
+        profile: { enabled: true, shortcut: '!profile', channelIds: [] },
+        avatar: { enabled: true, shortcut: '!avatar', channelIds: [] },
+        banner: { enabled: true, shortcut: '!banner', channelIds: [] },
+        server: { enabled: true, shortcut: '!server', channelIds: [] }
+    };
+    const saved = await GeneralCommandConfig.findOne({ guildId: g.id });
+    const commands = {};
+    for (const key of Object.keys(defaults)) commands[key] = { ...defaults[key], ...(saved?.commands?.[key] || {}) };
+
+    const labels = { profile: 'بروفايل العضو', avatar: 'صورة الحساب', banner: 'بنر الحساب', server: 'معلومات السيرفر' };
+    const channels = [...g.channels.cache.values()]
+        .filter(c => c.type === ChannelType.GuildText)
+        .sort((a, b) => a.position - b.position);
+    const channelOptions = (selected = []) => channels.map(c => `<option value="${c.id}" ${selected.includes(c.id) ? 'selected' : ''}>#${c.name}</option>`).join('');
+
+    const cards = Object.entries(commands).map(([key, cfg]) => `
+        <div class="card" style="border-right:4px solid var(--blue); margin-bottom:18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:15px; margin-bottom:15px;">
+                <h3 style="margin:0;">${labels[key]}</h3>
+                <label style="display:flex; align-items:center; gap:8px; font-size:13px;">
+                    <input type="checkbox" name="cmd_${key}_enabled" ${cfg.enabled ? 'checked' : ''} style="width:17px; height:17px;"> مفعّل
+                </label>
+            </div>
+            <label>الاختصار الذي تريده</label>
+            <input name="cmd_${key}_shortcut" value="${cfg.shortcut || ''}" placeholder="مثال: !p أو بروفايل" maxlength="32" required>
+            <label style="margin-top:12px;">الرومات المسموح فيها الاستخدام</label>
+            <select name="cmd_${key}_channels" multiple size="4" style="min-height:100px;">
+                ${channelOptions(Array.isArray(cfg.channelIds) ? cfg.channelIds : [])}
+            </select>
+            <small style="color:var(--text-muted); display:block; margin-top:8px;">اترك اختيار الرومات فارغًا للسماح بالأمر في كل الرومات النصية.</small>
+        </div>
+    `).join('');
+
+    const content = `
+        <div class="card">
+            <h2 style="margin-bottom:10px;">الأوامر العامة</h2>
+            <p style="color:var(--text-muted); font-size:13px; margin-bottom:25px;">أوامر معلوماتية بسيطة تعرض بطاقات وصور الأعضاء أو السيرفر. أنت تحدد اختصار كل أمر والرومات المسموح بها.</p>
+            <form method="POST" action="/save/${g.id}/generalcmds">
+                ${cards}
+                <button type="submit" class="btn-save" style="font-size:16px; padding:15px;">حفظ الأوامر العامة</button>
+            </form>
+        </div>
+    `;
+    res.send(ui(g, 'generalcmds', content));
+});
+
+app.post('/save/:guildId/generalcmds', checkAuth, async (req, res) => {
+    const guildId = req.params.guildId;
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return res.redirect('/dashboard');
+
+    const keys = ['profile', 'avatar', 'banner', 'server'];
+    const commands = {};
+    const shortcuts = [];
+    for (const key of keys) {
+        const shortcut = String(req.body[`cmd_${key}_shortcut`] || '').trim();
+        const channelIds = req.body[`cmd_${key}_channels`] ? (Array.isArray(req.body[`cmd_${key}_channels`]) ? req.body[`cmd_${key}_channels`] : [req.body[`cmd_${key}_channels`]]) : [];
+        if (!shortcut || shortcut.length > 32) return res.status(400).send('كل أمر عام يجب أن يملك اختصارًا صالحًا.');
+        if (shortcuts.includes(shortcut.toLowerCase())) return res.status(400).send('لا يمكن استخدام نفس الاختصار لأكثر من أمر عام.');
+        shortcuts.push(shortcut.toLowerCase());
+        commands[key] = { enabled: req.body[`cmd_${key}_enabled`] === 'on', shortcut, channelIds: channelIds.filter(id => guild.channels.cache.has(id)) };
+    }
+
+    const adminCfg = await AdminCmdConfig.findOne({ guildId });
+    const adminShortcuts = Object.values(adminCfg?.settings || {}).map(s => String(s.shortcut || '').toLowerCase());
+    if (shortcuts.some(s => adminShortcuts.includes(s))) return res.status(400).send('أحد الاختصارات متعارض مع اختصار أمر إداري موجود.');
+
+    await GeneralCommandConfig.findOneAndUpdate({ guildId }, { $set: { commands } }, { upsert: true, new: true });
+    res.redirect(`/manage/${guildId}/generalcmds`);
 });
 
 // ==========================================
@@ -2389,8 +2479,81 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
         }
     } catch (e) {}
 
+    // --- [ الأوامر العامة المصورة ] ---
+    try {
+        const defaults = {
+            profile: { enabled: true, shortcut: '!profile', channelIds: [] },
+            avatar: { enabled: true, shortcut: '!avatar', channelIds: [] },
+            banner: { enabled: true, shortcut: '!banner', channelIds: [] },
+            server: { enabled: true, shortcut: '!server', channelIds: [] }
+        };
+        const generalCfg = await GeneralCommandConfig.findOne({ guildId: msg.guild.id });
+        const generalCommands = generalCfg?.commands || defaults;
+        const args = msg.content.trim().split(/ +/);
+        const commandKey = Object.keys(defaults).find(key => {
+            const cfg = { ...defaults[key], ...(generalCommands[key] || {}) };
+            return cfg.enabled && String(cfg.shortcut || '').trim() === args[0];
+        });
+        if (commandKey) {
+            const cfg = { ...defaults[commandKey], ...(generalCommands[commandKey] || {}) };
+            if (Array.isArray(cfg.channelIds) && cfg.channelIds.length && !cfg.channelIds.includes(msg.channel.id)) return;
+
+            const mentionedMember = msg.mentions.members.first();
+            const requestedMember = mentionedMember || (args[1] ? await msg.guild.members.fetch(args[1]).catch(() => null) : null);
+            const member = requestedMember || msg.member;
+            const user = member.user;
+            const avatar = user.displayAvatarURL({ extension: 'png', size: 512 });
+
+            if (commandKey === 'profile') {
+                const profile = new EmbedBuilder()
+                    .setColor(0x1e90ff)
+                    .setAuthor({ name: `ملف ${user.tag}`, iconURL: avatar })
+                    .setThumbnail(avatar)
+                    .addFields(
+                        { name: 'العضو', value: `<@${user.id}>`, inline: true },
+                        { name: 'معرّف العضو', value: `\`${user.id}\``, inline: true },
+                        { name: 'تاريخ إنشاء الحساب', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:D>`, inline: true },
+                        { name: 'تاريخ دخول السيرفر', value: member.joinedTimestamp ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:D>` : 'غير معروف', inline: true },
+                        { name: 'عدد الرتب', value: `${Math.max(0, member.roles.cache.size - 1)}`, inline: true }
+                    )
+                    .setTimestamp();
+                const banner = user.bannerURL?.({ extension: 'png', size: 1024 });
+                if (banner) profile.setImage(banner);
+                return msg.reply({ embeds: [profile] });
+            }
+
+            if (commandKey === 'avatar') {
+                return msg.reply({ embeds: [new EmbedBuilder().setColor(0x1e90ff).setTitle(`صورة ${user.username}`).setImage(avatar).setFooter({ text: `طلب بواسطة ${msg.author.username}` })] });
+            }
+
+            if (commandKey === 'banner') {
+                const banner = user.bannerURL?.({ extension: 'png', size: 1024 });
+                if (!banner) return msg.reply('هذا العضو لا يملك بنرًا للحساب.');
+                return msg.reply({ embeds: [new EmbedBuilder().setColor(0x1e90ff).setTitle(`بنر ${user.username}`).setImage(banner)] });
+            }
+
+            if (commandKey === 'server') {
+                const icon = msg.guild.iconURL({ extension: 'png', size: 512 });
+                const serverEmbed = new EmbedBuilder()
+                    .setColor(0x1e90ff)
+                    .setTitle(msg.guild.name)
+                    .addFields(
+                        { name: 'الأعضاء', value: `${msg.guild.memberCount || 0}`, inline: true },
+                        { name: 'الرومات', value: `${msg.guild.channels.cache.size}`, inline: true },
+                        { name: 'المالك', value: `<@${msg.guild.ownerId}>`, inline: true },
+                        { name: 'تاريخ إنشاء السيرفر', value: `<t:${Math.floor(msg.guild.createdTimestamp / 1000)}:D>`, inline: true }
+                    )
+                    .setTimestamp();
+                if (icon) serverEmbed.setThumbnail(icon);
+                return msg.reply({ embeds: [serverEmbed] });
+            }
+        }
+    } catch (err) {
+        console.error('[General Commands Error]', err);
+    }
 
     // --- [ نظام الاقتراحات ] ---
+
     try {
         const sugCfg = await SuggestionConfig.findOne({ guildId: msg.guild.id, channelId: msg.channel.id });
         if (sugCfg) {
