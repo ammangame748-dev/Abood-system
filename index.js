@@ -56,6 +56,7 @@ const TicketData = mongoose.model('TicketData', new mongoose.Schema({
     ownerId: String,
     ticketType: { type: String, default: 'تذكرة دعم' },
     adminRoleId: String,
+    categoryId: String,
     claimedBy: String,
     openedAt: Date,
     closedAt: Date,
@@ -250,8 +251,8 @@ const TicketConfig = mongoose.model('TicketConfig', new mongoose.Schema({
     topImagePath: String,
     bottomImagePath: String,
     ticketCount: { type: Number, default: 0 },
-    buttons: [{ label: String, emoji: String, roleId: String }],
-    menuOptions: [{ label: String, emoji: String, roleId: String }]
+    buttons: [{ label: String, emoji: String, roleId: String, categoryId: String }],
+    menuOptions: [{ label: String, emoji: String, roleId: String, categoryId: String }]
 }));
 
 // ==========================================
@@ -1958,6 +1959,15 @@ app.get('/manage/:guildId/tickets', checkAuth, async (req, res) => {
     let topImg = s.topImagePath ? `/uploads/${path.basename(s.topImagePath)}` : 'https://placehold.co/110x110?text=Top';
     let bottomImg = s.bottomImagePath ? `/uploads/${path.basename(s.bottomImagePath)}` : 'https://placehold.co/110x110?text=Bottom';
 
+    const ticketCategories = g.channels.cache
+        .filter(c => c.type === ChannelType.GuildCategory)
+        .sort((a, b) => a.position - b.position);
+
+    const categoryOptions = (selectedId) => `
+        <option value="">-- بدون كاتيجوري --</option>
+        ${ticketCategories.map(c => `<option value="${c.id}" ${selectedId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+    `;
+
     const content = `
     <form action="/save/${g.id}/tickets" method="POST" enctype="multipart/form-data">
         <div class="card">
@@ -1996,25 +2006,31 @@ app.get('/manage/:guildId/tickets', checkAuth, async (req, res) => {
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:16px;">
                 <div>
                     <div style="color:var(--blue); font-size:13px; font-weight:700; margin-bottom:10px;">الازرار (حتى 4)</div>
-${[0,1,2,3].map(i => `
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
+	${[0,1,2,3].map(i => `
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
                         <input name="btn_label_${i}" value="${s.buttons?.[i]?.label || ''}" placeholder="نص الزر ${i+1}">
                         <input name="btn_emoji_${i}" value="${s.buttons?.[i]?.emoji || ''}" placeholder="ايموجي">
                         <select name="btn_role_${i}">
                             <option value="">-- رتبة القسم --</option>
                             ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.buttons?.[i]?.roleId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
                         </select>
+                        <select name="btn_category_${i}">
+                            ${categoryOptions(s.buttons?.[i]?.categoryId)}
+                        </select>
                     </div>`).join('')}
                 </div>
                 <div>
                     <div style="color:var(--blue); font-size:13px; font-weight:700; margin-bottom:10px;">خيارات المنيو (حتى 4)</div>
-${[0,1,2,3].map(i => `
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
+	${[0,1,2,3].map(i => `
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
                         <input name="menu_label_${i}" value="${s.menuOptions?.[i]?.label || ''}" placeholder="نص الخيار ${i+1}">
                         <input name="menu_emoji_${i}" value="${s.menuOptions?.[i]?.emoji || ''}" placeholder="ايموجي">
                         <select name="menu_role_${i}">
                             <option value="">-- رتبة القسم --</option>
                             ${g.roles.cache.filter(r => r.name !== '@everyone').map(r => `<option value="${r.id}" ${s.menuOptions?.[i]?.roleId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
+                        </select>
+                        <select name="menu_category_${i}">
+                            ${categoryOptions(s.menuOptions?.[i]?.categoryId)}
                         </select>
                     </div>`).join('')}
                 </div>
@@ -2046,11 +2062,29 @@ app.post('/save/:guildId/tickets', checkAuth, upload.fields([{ name: 'topImage' 
             const btnLabel = b[`btn_label_${i}`]?.trim();
             const btnEmoji = b[`btn_emoji_${i}`]?.trim();
             const btnRole = b[`btn_role_${i}`]?.trim();
+            const btnCategory = b[`btn_category_${i}`]?.trim();
             const menuLabel = b[`menu_label_${i}`]?.trim();
             const menuEmoji = b[`menu_emoji_${i}`]?.trim();
             const menuRole = b[`menu_role_${i}`]?.trim();
-            if (btnLabel) buttons.push({ label: btnLabel, emoji: btnEmoji || '', roleId: btnRole || '' });
-            if (menuLabel) menuOptions.push({ label: menuLabel, emoji: menuEmoji || '', roleId: menuRole || '' });
+            const menuCategory = b[`menu_category_${i}`]?.trim();
+
+            if (btnLabel) {
+                buttons.push({
+                    label: btnLabel,
+                    emoji: btnEmoji || '',
+                    roleId: btnRole || '',
+                    categoryId: btnCategory || ''
+                });
+            }
+
+            if (menuLabel) {
+                menuOptions.push({
+                    label: menuLabel,
+                    emoji: menuEmoji || '',
+                    roleId: menuRole || '',
+                    categoryId: menuCategory || ''
+                });
+            }
         }
 
         let updateData = { 
@@ -3818,6 +3852,23 @@ async function openTicket(interaction, tConfig, ticketType) {
             if (tConfig.menuOptions?.[idx]?.roleId) adminRoleId = tConfig.menuOptions[idx].roleId;
         }
 
+        let categoryId = null;
+        if (interaction.customId.startsWith('ticket_btn_')) {
+            const idx = parseInt(interaction.customId.replace('ticket_btn_', ''), 10);
+            categoryId = tConfig.buttons?.[idx]?.categoryId || null;
+        } else if (interaction.customId === 'ticket_menu') {
+            const selected = interaction.values[0];
+            const idx = parseInt(selected.replace('ticket_opt_', ''), 10);
+            categoryId = tConfig.menuOptions?.[idx]?.categoryId || null;
+        }
+
+        const category = categoryId
+            ? interaction.guild.channels.cache.get(categoryId)
+            : null;
+        if (categoryId && (!category || category.type !== ChannelType.GuildCategory)) {
+            categoryId = null;
+        }
+
         const permOverwrites = [
             { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
             { id: interaction.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
@@ -3829,6 +3880,7 @@ async function openTicket(interaction, tConfig, ticketType) {
         const ticketChannel = await interaction.guild.channels.create({
             name: channelName,
             type: ChannelType.GuildText,
+            parent: categoryId || undefined,
             permissionOverwrites: permOverwrites
         }).catch(() => null);
 
@@ -3840,6 +3892,7 @@ async function openTicket(interaction, tConfig, ticketType) {
             ownerId: interaction.user.id,
             ticketType,
             adminRoleId: adminRoleId,
+            categoryId,
             openedAt: new Date()
         });
 
