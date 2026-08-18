@@ -2930,15 +2930,15 @@ client.on('messageReactionRemove', async (reaction, user) => {
 
 client.on('messageDelete', async (message) => {
     if (!message || !message.guild || !message.channel || !message.author) return;
-    const logs = await message.guild.fetchAuditLogs({ type: AuditLogEvent.MessageDelete }).catch(() => {});
-    const executor = logs?.entries.first()?.executor;
+    // لا نعتمد على أول سجل تدقيق؛ قد يكون لحذف آخر ويؤدي إلى اتهام بوت أو عضو بالخطأ.
+    const executor = null;
 
     const embed = new EmbedBuilder()
         .setTitle('رسالة محذوفة')
         .setColor(0xe63946)
         .addFields(
             { name: 'صاحب الرسالة', value: `<@${message.author.id}>`, inline: true },
-            { name: 'حذفها', value: executor ? `<@${executor.id}>` : 'غير معروف', inline: true },
+            { name: 'المنفّذ', value: executor ? `<@${executor.id}>` : 'غير مؤكد — راجع Audit Log يدوياً', inline: true },
             { name: 'القناة', value: `<#${message.channel.id}>`, inline: true },
             { name: 'المحتوى', value: (message.content || '(لا يوجد نص)').slice(0,1024) },
             { name: 'المرفقات', value: [...(message.attachments?.values()||[])].map((a,i)=>`[ملف ${i+1}](${a.url})`).join('\n').slice(0,1024)||'لا يوجد' },
