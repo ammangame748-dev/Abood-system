@@ -2391,7 +2391,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
             if (hasPerm) {
                 const target = msg.mentions.members.first() || msg.guild.members.cache.get(args[1]);
                 let resultMsg = null;
-                if (settings.delUser) await msg.delete().catch(() => {});
+                // حفظ رسائل الأعضاء: لا يحذف البوت رسالة الأمر مهما كانت إعدادات delUser القديمة.
                 if (actionKey === 'lock') {
                     await msg.channel.permissionOverwrites.edit(msg.guild.roles.everyone, { SendMessages: false });
                     resultMsg = await msg.channel.send('🔒 تم قفل الشات بنجاح.');
@@ -2417,7 +2417,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                     await target.kick().catch(() => {});
                     resultMsg = await msg.channel.send(`👢 تم طرد ${target.user.username} بنجاح.`);
                 }
-                if (resultMsg && settings.delBot) { setTimeout(() => resultMsg.delete().catch(() => {}), 5000); }
+                // حفظ رسائل البوت: لا يحذف البوت رسائل النتائج تلقائياً مهما كانت إعدادات delBot القديمة.
                 return;
             }
         }
@@ -2432,7 +2432,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
             const attachmentImg = msg.attachments.find(a => a.contentType?.startsWith('image/'));
             if (content || attachmentImg) {
                 const authorAvatar = msg.author.displayAvatarURL({ dynamic: true });
-                await msg.delete().catch(() => {});
+                // لا نحذف رسالة الاقتراح الأصلية؛ تبقى محفوظة في الروم.
 
                 const embed = new EmbedBuilder()
                     .setAuthor({ name: `اقتراح من ${msg.author.username}`, iconURL: authorAvatar })
@@ -2533,7 +2533,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
         const sConfig = await GuildConfig.findOne({ guildId: msg.guild.id });
         const savedBanner = sConfig?.welcome?.bannerURL;
         if (!savedBanner) return msg.reply('لم يتم ضبط بنر لهذا السيرفر بعد. استخدم /setbanner أولاً.');
-        await msg.delete().catch(() => {});
+        // لا نحذف رسالة الأمر حتى عند تنفيذ أمر البنر.
         return msg.channel.send({ files: [savedBanner] });
     }
 
@@ -2567,9 +2567,8 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                 } catch { return msg.content.includes(word); }
             });
             if (hasBadWord) {
-                await msg.delete().catch(() => {});
-                return msg.channel.send(`${msg.author}، ممنوع استخدام هذه الكلمة!`)
-                    .then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
+                // تم تعطيل حذف الرسائل؛ تبقى الرسالة كما هي حتى لو احتوت كلمة محظورة.
+                return;
             }
         }
 
@@ -2577,16 +2576,14 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
             const forbiddenEmojis = s.security.badEmojis.split(',').map(e => e.trim()).filter(Boolean);
             const hasBadEmoji = forbiddenEmojis.some(emoji => msg.content.includes(emoji));
             if (hasBadEmoji) {
-                await msg.delete().catch(() => {});
-                return msg.channel.send(`${msg.author}، هذا الإيموجي ممنوع!`)
-                    .then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
+                // تم تعطيل حذف الرسائل؛ تبقى الرسالة كما هي حتى لو احتوت إيموجياً محظوراً.
+                return;
             }
         }
 
         if (s.security?.antiLinks && /(https?:\/\/)/.test(msg.content)) {
-            await msg.delete().catch(() => {});
-            return msg.channel.send(`${msg.author}، الروابط ممنوعة هنا!`)
-                .then(m => setTimeout(() => m.delete().catch(() => {}), 3000));
+            // تم تعطيل حذف الرسائل؛ تبقى رسالة الرابط كما هي.
+            return;
         }
     }
 
@@ -3389,10 +3386,7 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             if (interaction.commandName === 'purge') {
-                const amount = interaction.options.getInteger('عدد');
-                if (amount < 1 || amount > 100) return interaction.reply({ content: 'العدد يجب أن يكون بين 1 و 100.', ephemeral: true });
-                const deleted = await interaction.channel.bulkDelete(amount, true).catch(() => null);
-                return interaction.reply({ content: `تم حذف ${deleted?.size || 0} رسالة.`, ephemeral: true });
+                return interaction.reply({ content: 'تم تعطيل حذف الرسائل نهائياً في هذا البوت.', ephemeral: true });
             }
 
             if (interaction.commandName === 'lock') {
@@ -3756,9 +3750,9 @@ if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_menu') 
             }
 
             if (selected === 'delete') {
-                await Suggestion.deleteOne({ _id: suggestion._id });
-                await interaction.message.delete().catch(() => {});
-                return interaction.reply({ content: 'تم حذف الاقتراح.', ephemeral: true });
+                suggestion.status = 'archived';
+                await suggestion.save();
+                return interaction.reply({ content: 'تمت أرشفة الاقتراح بدون حذف أي رسالة.', ephemeral: true });
             }
         }
 
