@@ -2478,7 +2478,7 @@ async function verifyRoleStorePayment(msg) {
 
     // مثال الرسالة المعتمدة: **ـ kl__masri، قام بتحويل `$9501` لـ <@!934215537150554113> **
     // نتجاهل اسم المحوّل تماماً، ونقرأ فقط المبلغ وID المستلم.
-    const transferMatch = normalized.match(/قام\s+بتحويل\s+[`*_~\s]*\$?\s*([\d,]+(?:\.\d+)?)\s*[`*_~\s]*ل(?:ـ|ى)?\s*<@!?([0-9]{15,22})>/i);
+    const transferMatch = normalized.match(/قام\s+بتحويل\s+[`*_~\s]*\$?\s*([\d,]+(?:\.\d+)?)\s*\$?\s*[`*_~\s]*ل(?:ـ|ى)?\s*<@!?([0-9]{15,22})>/i);
     if (!transferMatch) return false;
     const transferredAmount = Number(String(transferMatch[1]).replace(/,/g, ''));
     const receiverId = transferMatch[2];
@@ -3721,8 +3721,10 @@ client.on('interactionCreate', async (interaction) => {
             if (active) return interaction.reply({ content: `لديك عملية شراء معلقة. حوّل ${active.price} كريدت أولاً أو انتظر انتهاء العملية.`, ephemeral: true });
             const order = await RoleStoreOrder.create({ guildId: interaction.guild.id, userId: interaction.user.id, roleId: role.id, roleLabel: item.label, price: item.price, channelId: interaction.channel.id, expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
             const receivers = cfg.creditReceivers.map(id => `<@${id}>`).join(' أو ');
-            const paymentCommands = cfg.creditReceivers.map(id => `#credit <@${id}> ${item.price}`).join('\\n');
-            const paymentText = `حوّل المبلغ إلى أحد المستلمين بالأمر المناسب:\n${paymentCommands}\nبعد نجاح التحويل، سيمنحك البوت الرتبة تلقائياً. صلاحية الطلب 10 دقائق.`;
+            // ProBot يخصم 5% تقريباً؛ السعر في الداشبورد هو المبلغ الصافي الذي يجب أن يظهر في رسالة ProBot.
+            const grossTransfer = Math.ceil(item.price / 0.95);
+            const paymentCommands = cfg.creditReceivers.map(id => `#credit <@${id}> ${grossTransfer}`).join('\\n');
+            const paymentText = `حوّل ${grossTransfer} كريدت إلى أحد المستلمين. بعد الرسوم يجب أن تظهر رسالة ProBot بمبلغ ${item.price}$.\\n${paymentCommands}\\nبعد نجاح التحويل، سيمنحك البوت الرتبة تلقائياً. صلاحية الطلب 10 دقائق.`;
             const e = new EmbedBuilder().setTitle(`شراء رتبة: ${item.label}`).setColor(0xffb703).setDescription(item.details || 'اتبع خطوات الدفع التالية.').addFields({ name: 'السعر النهائي', value: `${item.price} كريدت`, inline: true }, { name: 'المستلمون', value: receivers.slice(0, 1024), inline: true }, { name: 'طريقة الدفع', value: paymentText }).setFooter({ text: `رقم العملية: ${order._id}` });
             return interaction.reply({ embeds: [e], ephemeral: true });
         }
