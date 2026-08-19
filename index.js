@@ -2473,12 +2473,15 @@ async function verifyRoleStorePayment(msg) {
     const body = [msg.content || '', ...(msg.embeds || []).flatMap(e => [e.title || '', e.description || '', ...(e.fields || []).flatMap(f => [f.name || '', f.value || ''])])].join('\n');
     const normalized = body
         .replace(/[،,]/g, ',')
+        .replace(/[\u061c\u200e\u200f\u202a-\u202e]/g, '')
         .replace(/\u0660/g, '0').replace(/\u0661/g, '1').replace(/\u0662/g, '2').replace(/\u0663/g, '3').replace(/\u0664/g, '4')
-        .replace(/\u0665/g, '5').replace(/\u0666/g, '6').replace(/\u0667/g, '7').replace(/\u0668/g, '8').replace(/\u0669/g, '9');
+        .replace(/\u0665/g, '5').replace(/\u0666/g, '6').replace(/\u0667/g, '7').replace(/\u0668/g, '8').replace(/\u0669/g, '9')
+        .replace(/\s+/g, ' ').trim();
 
-    // مثال الرسالة المعتمدة: **ـ kl__masri، قام بتحويل `$9501` لـ <@!934215537150554113> **
+    // مثال الرسالة الفعلية: قام بتحويل 100000$ لـ <@!934215537150554113>
     // نتجاهل اسم المحوّل تماماً، ونقرأ فقط المبلغ وID المستلم.
-    const transferMatch = normalized.match(/قام\s+بتحويل\s+[`*_~\s]*\$?\s*([\d,]+(?:\.\d+)?)\s*\$?\s*[`*_~\s]*ل(?:ـ|ى)?\s*<@!?([0-9]{15,22})>/i);
+    const transferMatch = normalized.match(/قام\s+بتحويل\s*[`*_~\s]*\$?\s*([\d,]+(?:\.\d+)?)\s*\$?\s*[`*_~\s]*(?:لـ|ل|إلى|الى)\s*<@!?([0-9]{15,22})>/i)
+        || normalized.match(/تحويل\D*[`*_~\s]*\$?\s*([\d,]+(?:\.\d+)?)\s*\$?\s*[`*_~\s]*(?:لـ|ل|إلى|الى)\s*<@!?([0-9]{15,22})>/i);
     if (!transferMatch) return false;
     const transferredAmount = Number(String(transferMatch[1]).replace(/,/g, ''));
     const receiverId = transferMatch[2];
