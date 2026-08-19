@@ -245,6 +245,7 @@ const Suggestion = mongoose.model('Suggestion', new mongoose.Schema({
 const RoleStoreConfig = mongoose.model('RoleStoreConfig', new mongoose.Schema({
     guildId: { type: String, unique: true, required: true },
     channelId: { type: String, default: '' },
+    paymentChannelId: { type: String, default: '' },
     probotId: { type: String, default: process.env.PROBOT_ID || '1535476663846965321' },
     creditReceivers: { type: [String], default: [] },
     title: { type: String, default: 'متجر الرتب' },
@@ -2251,6 +2252,9 @@ app.get('/manage/:guildId/role-store', checkAuth, async (req, res) => {
             <p style="color:var(--text-muted)">حدد الروم والرتب والأسعار، وسيتم إرسال منيو الشراء تلقائياً.</p>
             <label>روم إرسال المتجر</label>
             <select name="channelId" required><option value="">-- اختر الروم --</option>${g.channels.cache.filter(x => x.type === ChannelType.GuildText).map(x => `<option value="${x.id}" ${c.channelId === x.id ? 'selected' : ''}># ${esc(x.name)}</option>`).join('')}</select>
+            <label>روم استقبال تحويلات ProBot</label>
+            <select name="paymentChannelId" required><option value="">-- اختر روم التحويل --</option>${g.channels.cache.filter(x => x.type === ChannelType.GuildText).map(x => `<option value="${x.id}" ${c.paymentChannelId === x.id ? 'selected' : ''}># ${esc(x.name)}</option>`).join('')}</select>
+            <small style="color:var(--text-muted)">هذا هو الروم الذي تظهر فيه رسالة ProBot بعد التحويل، ويمكن أن يكون مختلفاً عن روم إيمبد المتجر.</small>
             <label>آيدي ProBot</label>
             <input name="probotId" value="${esc(c.probotId || process.env.PROBOT_ID || '1535476663846965321')}" placeholder="1535476663846965321" required>
             <label>آيديات مستلمي الكريدت</label>
@@ -2277,7 +2281,9 @@ app.post('/save/:guildId/role-store', checkAuth, async (req, res) => {
         const g = client.guilds.cache.get(guildId);
         if (!g) return res.status(404).send('السيرفر غير موجود');
         const channel = g.channels.cache.get(String(req.body.channelId || ''));
-        if (!channel || channel.type !== ChannelType.GuildText) return res.status(400).send('اختر روم نصي صحيح');
+        const paymentChannel = g.channels.cache.get(String(req.body.paymentChannelId || ''));
+        if (!channel || channel.type !== ChannelType.GuildText) return res.status(400).send('اختر روم إيمبد نصي صحيح');
+        if (!paymentChannel || paymentChannel.type !== ChannelType.GuildText) return res.status(400).send('اختر روم تحويلات ProBot صحيح');
         const probotId = String(req.body.probotId || '').trim();
         if (!/^\d{15,22}$/.test(probotId)) return res.status(400).send('آيدي ProBot غير صحيح');
         const creditReceivers = String(req.body.creditReceivers || '').split(/[\s,،]+/).map(x => x.trim()).filter(x => /^\d{15,22}$/.test(x));
@@ -2294,7 +2300,7 @@ app.post('/save/:guildId/role-store', checkAuth, async (req, res) => {
             roles.push({ roleId, label: label.slice(0, 100), price, details: details.slice(0, 100) });
         }
         if (!roles.length) return res.status(400).send('أدخل رتبة واحدة على الأقل');
-        const cfg = await RoleStoreConfig.findOneAndUpdate({ guildId }, { $set: { guildId, channelId: channel.id, probotId, creditReceivers, title: String(req.body.title || 'متجر الرتب').slice(0, 256), description: String(req.body.description || '').slice(0, 4000), roles } }, { upsert: true, new: true });
+        const cfg = await RoleStoreConfig.findOneAndUpdate({ guildId }, { $set: { guildId, channelId: channel.id, paymentChannelId: paymentChannel.id, probotId, creditReceivers, title: String(req.body.title || 'متجر الرتب').slice(0, 256), description: String(req.body.description || '').slice(0, 4000), roles } }, { upsert: true, new: true });
         const embed = new EmbedBuilder().setTitle(cfg.title).setDescription(cfg.description).setColor(0x1e90ff).setTimestamp();
         const menu = new StringSelectMenuBuilder().setCustomId('role_store_menu').setPlaceholder('اختر الرتبة التي تريد شراءها').setMinValues(1).setMaxValues(1).addOptions(cfg.roles.slice(0, 10).map(r => ({ label: r.label, value: r.roleId, description: `${r.price} كريدت${r.details ? ` - ${r.details}` : ''}`.slice(0, 100) })));
         const sent = await channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
@@ -2475,9 +2481,9 @@ async function verifyRoleStorePayment(msg) {
         console.log(`[Role Store] تجاهل رسالة بوت غير مطابقة: author=${msg.author.id}, acceptedProbotIds=${[...acceptedProbotIds].join(',')}`);
         return false;
     }
-    const acceptedChannelIds = new Set([cfg.channelId, process.env.ROLE_STORE_PAYMENT_CHANNEL_ID, '1251304201741402113'].map(String).map(x => x.trim()).filter(Boolean));
+    const acceptedChannelIds = new Set([cfg.paymentChannelId, process.env.ROLE_STORE_PAYMENT_CHANNEL_ID, '1251304201741402113'].map(String).map(x => x.trim()).filter(Boolean));
     if (!acceptedChannelIds.has(msg.channel.id)) {
-        console.log(`[Role Store] رسالة ProBot صحيحة لكن الروم مختلف: messageChannel=${msg.channel.id}, acceptedChannels=${[...acceptedChannelIds].join(',')}`);
+        console.log(`[Role Store] رسالة ProBot صحيحة لكن الروم مختلف: messageChannel=${msg.channel.id}, acceptedPaymentChannels=${[...acceptedChannelIds].join(',')}`);
         return false;
     }
     const body = [msg.content || '', ...(msg.embeds || []).flatMap(e => [e.title || '', e.description || '', ...(e.fields || []).flatMap(f => [f.name || '', f.value || ''])])].join('\n');
