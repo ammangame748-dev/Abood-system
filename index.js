@@ -2507,10 +2507,10 @@ async function verifyRoleStorePayment(msg) {
         return false;
     }
 
-    let candidates = await RoleStoreOrder.find({ guildId: msg.guild.id, channelId: msg.channel.id, status: 'pending', price: transferredAmount, expiresAt: { $gt: new Date() } }).sort({ createdAt: 1 }).limit(25);
+    let candidates = await RoleStoreOrder.find({ guildId: msg.guild.id, channelId: msg.channel.id, status: 'pending', price: transferredAmount, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 }).limit(25);
     // إذا تم الضغط على المنيو في روم مختلف عن روم وصول رسالة ProBot، ابحث داخل طلبات السيرفر المعلقة.
     if (!candidates.length) {
-        candidates = await RoleStoreOrder.find({ guildId: msg.guild.id, status: 'pending', price: transferredAmount, expiresAt: { $gt: new Date() } }).sort({ createdAt: 1 }).limit(25);
+        candidates = await RoleStoreOrder.find({ guildId: msg.guild.id, status: 'pending', price: transferredAmount, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 }).limit(25);
     }
     if (!candidates.length) {
         console.log(`[Role Store] رسالة الدفع مطابقة، لكن لا توجد عملية معلقة بالمبلغ ${transferredAmount}.`);
@@ -2520,7 +2520,11 @@ async function verifyRoleStorePayment(msg) {
         const claimed = await RoleStoreOrder.findOneAndUpdate({ _id: order._id, status: 'pending' }, { $set: { status: 'paid', paymentMessageId: msg.id, grantedAt: new Date() } }, { new: true });
         if (!claimed) continue;
         // receiverId هو مستلم الكريديت فقط. صاحب الرتبة دائماً هو userId المحفوظ عند ضغط العضو على الرتبة.
-        const buyerId = order.userId;
+        const buyerId = String(order.userId || '').trim();
+        if (!/^\d{15,22}$/.test(buyerId)) {
+            console.log(`[Role Store] العملية ${order._id} لا تحتوي على userId صالح: ${buyerId}`);
+            continue;
+        }
         const member = await msg.guild.members.fetch(buyerId).catch(() => null);
         const role = msg.guild.roles.cache.get(order.roleId);
         if (!member || !role || role.managed || role.position >= msg.guild.members.me.roles.highest.position) {
