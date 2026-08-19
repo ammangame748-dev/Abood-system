@@ -288,6 +288,18 @@ const TicketConfig = mongoose.model('TicketConfig', new mongoose.Schema({
     menuOptions: [{ label: String, emoji: String, roleId: String, categoryId: String }]
 }));
 
+const EmbedPanelConfig = mongoose.model('EmbedPanelConfig', new mongoose.Schema({
+    guildId: { type: String, unique: true, required: true },
+    channelId: { type: String, default: '' },
+    title: { type: String, default: 'خريطة السيرفر' },
+    description: { type: String, default: 'مرحباً بك في خريطة السيرفر!\\n\\nاختر القسم الذي تريد استكشافه من الأزرار الموجودة بالأسفل.' },
+    color: { type: String, default: '#E7A92E' },
+    imagePath: { type: String, default: '' },
+    footer: { type: String, default: 'Royal Zone' },
+    buttons: [{ label: String, channelId: String }],
+    messageId: { type: String, default: '' }
+}, { timestamps: true }));
+
 // ==========================================
 // 2. Express App Setup
 // ==========================================
@@ -1075,6 +1087,71 @@ function ui(guild, active, content) {
 // ==========================================
 // 9. Dashboard Routes
 // ==========================================
+
+// --- [ Embed Panel Builder ] ---
+app.get('/manage/:guildId/embed-panel', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    if (!g) return res.redirect('/dashboard');
+    const isStaff = req.user?.id === process.env.OWNER_OPEN_ID || g.members.cache.get(req.user.id)?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isStaff) return res.status(403).send('غير مصرح لك بإدارة هذا السيرفر.');
+    const saved = await EmbedPanelConfig.findOne({ guildId: g.id }).lean() || {};
+    const channels = g.channels.cache.filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement);
+    const buttonValues = Array.from({ length: 5 }, (_, i) => saved.buttons?.[i] || { label: '', channelId: '' });
+    const esc = (x) => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const channelOptions = (selected) => `<option value="">-- اختر الروم --</option>${channels.map(c => `<option value="${c.id}" ${selected === c.id ? 'selected' : ''}># ${esc(c.name)}</option>`).join('')}`;
+    const content = `
+    <style>
+      .embed-builder{direction:rtl;display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}.embed-card-panel{background:#1d1f23;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:20px}.embed-builder h2{margin:0 0 16px;color:#f1b632}.embed-builder label{display:block;color:#ddd;margin:12px 0 6px;font-weight:700}.embed-builder input,.embed-builder textarea,.embed-builder select{width:100%;box-sizing:border-box;background:#111214;color:#eee;border:1px solid #3a3c42;border-radius:8px;padding:11px}.embed-builder textarea{min-height:130px;resize:vertical}.embed-preview{background:#313338;border-radius:10px;overflow:hidden;border:1px solid #444}.preview-head{padding:13px 16px;border-bottom:1px solid #242528;color:#eee}.preview-body{padding:24px 18px;background:#313338}.preview-embed{border-right:4px solid #E7A92E;background:#2b2d31;border-radius:4px;padding:15px;color:#ddd}.preview-embed h3{margin:0 0 8px;color:#fff}.preview-embed p{white-space:pre-line;line-height:1.7;margin:0}.preview-embed img{width:100%;max-height:230px;object-fit:cover;border-radius:6px;margin-top:15px}.preview-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.preview-buttons button{background:#d83c4c;color:#fff;border:0;border-radius:5px;padding:10px 14px;font-weight:700}.button-row{display:grid;grid-template-columns:42px 1fr 1fr;gap:8px;align-items:center;margin:8px 0}.button-row b{color:#f1b632}.embed-actions{display:flex;gap:10px;justify-content:flex-start;margin-top:16px}.embed-actions button{border:0;border-radius:8px;padding:12px 17px;font-weight:700;cursor:pointer}.embed-actions .send{background:#e7a92e;color:#17130b}.embed-actions .reset{background:#333;color:#ddd}@media(max-width:900px){.embed-builder{grid-template-columns:1fr}}
+    </style>
+    <div class="embed-builder">
+      <form class="embed-card-panel" method="POST" action="/save/${g.id}/embed-panel" enctype="multipart/form-data" oninput="syncPreview()">
+        <h2>منشئ لوحة الـEmbed</h2>
+        <label>الروم الذي ستُرسل فيه اللوحة</label><select name="channelId" id="channelId" required>${channelOptions(saved.channelId)}</select>
+        <label>عنوان الـEmbed</label><input name="title" id="title" value="${esc(saved.title || 'خريطة السيرفر')}" maxlength="256" required>
+        <label>محتوى الـEmbed</label><textarea name="description" id="description" maxlength="4096" required>${esc((saved.description || '').replace(/\\n/g, '\n'))}</textarea>
+        <label>لون الـEmbed</label><input name="color" id="color" type="color" value="${esc(saved.color || '#E7A92E')}">
+        <label>النص السفلي</label><input name="footer" id="footer" value="${esc(saved.footer || 'Royal Zone')}" maxlength="2048">
+        <label>الصورة</label><input name="image" id="image" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+        <h3 style="margin:20px 0 5px;color:#fff">الأزرار — كل زر يفتح رومًا محددًا</h3>
+        ${buttonValues.map((b, i) => `<div class="button-row"><b>0${i+1}</b><input name="buttonLabel_${i}" value="${esc(b.label)}" placeholder="اسم الزر"><select name="buttonChannel_${i}">${channelOptions(b.channelId)}</select></div>`).join('')}
+        <div class="embed-actions"><button class="send" type="submit">حفظ وإرسال اللوحة</button><button class="reset" type="reset">إعادة ضبط</button></div>
+      </form>
+      <div class="embed-card-panel"><h2>المعاينة المباشرة</h2><div class="embed-preview"><div class="preview-head"># <strong id="previewChannel">${esc((channels.get(saved.channelId)?.name) || 'الروم المحدد')}</strong></div><div class="preview-body"><div class="preview-embed" id="previewEmbed"><h3 id="previewTitle">${esc(saved.title || 'خريطة السيرفر')}</h3><p id="previewDescription">${esc((saved.description || '').replace(/\\n/g, '\n'))}</p>${saved.imagePath ? `<img src="${esc(saved.imagePath)}" id="previewImage">` : '<img id="previewImage" style="display:none">'}<small id="previewFooter">${esc(saved.footer || 'Royal Zone')}</small></div><div class="preview-buttons" id="previewButtons">${buttonValues.filter(b => b.label).map(b => `<button type="button">${esc(b.label)}</button>`).join('')}</div></div></div></div>
+    </div>
+    <script>
+      function syncPreview(){
+        const val=id=>document.getElementById(id)?.value||'';
+        document.getElementById('previewTitle').textContent=val('title');document.getElementById('previewDescription').textContent=val('description');document.getElementById('previewFooter').textContent=val('footer');document.getElementById('previewEmbed').style.borderRightColor=val('color');
+        const c=document.getElementById('channelId');document.getElementById('previewChannel').textContent=c?.selectedOptions[0]?.textContent?.replace(/^# /,'')||'الروم المحدد';
+        const out=document.getElementById('previewButtons');out.innerHTML='';for(let i=0;i<5;i++){const x=document.querySelector('[name=buttonLabel_' + i + ']');if(x&&x.value.trim()){const b=document.createElement('button');b.type='button';b.textContent=x.value;out.appendChild(b)}}
+      }
+      document.getElementById('image')?.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const img=document.getElementById('previewImage');img.src=URL.createObjectURL(f);img.style.display='block'});
+    </script>`;
+    res.send(renderPage(g.name, content, g));
+});
+
+app.post('/save/:guildId/embed-panel', checkAuth, upload.single('image'), async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    if (!g) return res.redirect('/dashboard');
+    const isStaff = req.user?.id === process.env.OWNER_OPEN_ID || g.members.cache.get(req.user.id)?.permissions.has(PermissionFlagsBits.ManageGuild);
+    if (!isStaff) return res.status(403).send('غير مصرح لك بإدارة هذا السيرفر.');
+    const buttons = Array.from({ length: 5 }, (_, i) => ({ label: String(req.body[`buttonLabel_${i}`] || '').trim().slice(0, 80), channelId: String(req.body[`buttonChannel_${i}`] || '') })).filter(x => x.label && x.channelId);
+    const selectedChannel = g.channels.cache.get(String(req.body.channelId));
+    if (!selectedChannel || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(selectedChannel.type)) return res.status(400).send('اختر رومًا نصيًا صالحًا.');
+    let imagePath = '';
+    if (req.file) imagePath = publicUploadUrl(req.file.path) || `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(path.basename(req.file.path))}`;
+    const old = await EmbedPanelConfig.findOne({ guildId: g.id });
+    if (!imagePath) imagePath = old?.imagePath || '';
+    const config = await EmbedPanelConfig.findOneAndUpdate({ guildId: g.id }, { guildId: g.id, channelId: selectedChannel.id, title: String(req.body.title || 'خريطة السيرفر').slice(0, 256), description: String(req.body.description || '').slice(0, 4096), color: /^#[0-9a-f]{6}$/i.test(req.body.color) ? req.body.color : '#E7A92E', footer: String(req.body.footer || '').slice(0, 2048), imagePath, buttons }, { upsert: true, new: true, setDefaultsOnInsert: true });
+    const embed = new EmbedBuilder().setTitle(config.title).setDescription(config.description).setColor(config.color).setFooter({ text: config.footer || 'Royal Zone' });
+    if (config.imagePath) embed.setImage(config.imagePath);
+    const row = new ActionRowBuilder();
+    for (const button of config.buttons.slice(0, 5)) row.addComponents(new ButtonBuilder().setLabel(button.label).setStyle(ButtonStyle.Link).setURL(`https://discord.com/channels/${g.id}/${button.channelId}`));
+    const payload = { embeds: [embed], components: row.components.length ? [row] : [] };
+    const sent = await selectedChannel.send(payload);
+    config.messageId = sent.id; await config.save();
+    res.redirect(`/manage/${g.id}/embed-panel?success=1`);
+});
 
 // --- [ Dashboard - Bulk Role Assignment ] ---
 app.get('/manage/:guildId/bulk-role', checkAuth, async (req, res) => {
