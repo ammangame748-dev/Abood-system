@@ -245,7 +245,7 @@ const Suggestion = mongoose.model('Suggestion', new mongoose.Schema({
 const RoleStoreConfig = mongoose.model('RoleStoreConfig', new mongoose.Schema({
     guildId: { type: String, unique: true, required: true },
     channelId: { type: String, default: '' },
-    probotId: { type: String, default: process.env.PROBOT_ID || '282859044593598464' },
+    probotId: { type: String, default: process.env.PROBOT_ID || '1535476663846965321' },
     creditReceivers: { type: [String], default: [] },
     title: { type: String, default: 'متجر الرتب' },
     description: { type: String, default: 'اختر الرتبة التي تريد شراءها ثم حوّل الكريدت إلى أحد المستلمين.' },
@@ -2252,7 +2252,7 @@ app.get('/manage/:guildId/role-store', checkAuth, async (req, res) => {
             <label>روم إرسال المتجر</label>
             <select name="channelId" required><option value="">-- اختر الروم --</option>${g.channels.cache.filter(x => x.type === ChannelType.GuildText).map(x => `<option value="${x.id}" ${c.channelId === x.id ? 'selected' : ''}># ${esc(x.name)}</option>`).join('')}</select>
             <label>آيدي ProBot</label>
-            <input name="probotId" value="${esc(c.probotId || process.env.PROBOT_ID || '282859044593598464')}" placeholder="282859044593598464" required>
+            <input name="probotId" value="${esc(c.probotId || process.env.PROBOT_ID || '1535476663846965321')}" placeholder="1535476663846965321" required>
             <label>آيديات مستلمي الكريدت</label>
             <input name="creditReceivers" value="${esc(receivers)}" placeholder="123..., 456..." required>
             <small style="color:var(--text-muted)">افصل بين الآيديات بفاصلة أو مسافة. يكفي التحويل إلى أي مستلم منها.</small>
@@ -2470,13 +2470,14 @@ async function verifyRoleStorePayment(msg) {
     if (!msg.guild || !msg.author?.bot) return false;
     const cfg = await RoleStoreConfig.findOne({ guildId: msg.guild.id });
     if (!cfg) return false;
-    const configuredProbotId = String(cfg.probotId || process.env.PROBOT_ID || '282859044593598464').trim();
-    if (msg.author.id !== configuredProbotId) {
-        console.log(`[Role Store] تجاهل رسالة بوت غير مطابقة: author=${msg.author.id}, configuredProbot=${configuredProbotId}`);
+    const acceptedProbotIds = new Set([cfg.probotId, process.env.PROBOT_ID, '1535476663846965321'].map(String).map(x => x.trim()).filter(Boolean));
+    if (!acceptedProbotIds.has(msg.author.id)) {
+        console.log(`[Role Store] تجاهل رسالة بوت غير مطابقة: author=${msg.author.id}, acceptedProbotIds=${[...acceptedProbotIds].join(',')}`);
         return false;
     }
-    if (msg.channel.id !== cfg.channelId) {
-        console.log(`[Role Store] رسالة ProBot صحيحة لكن الروم مختلف: messageChannel=${msg.channel.id}, storeChannel=${cfg.channelId}`);
+    const acceptedChannelIds = new Set([cfg.channelId, process.env.ROLE_STORE_PAYMENT_CHANNEL_ID, '1251304201741402113'].map(String).map(x => x.trim()).filter(Boolean));
+    if (!acceptedChannelIds.has(msg.channel.id)) {
+        console.log(`[Role Store] رسالة ProBot صحيحة لكن الروم مختلف: messageChannel=${msg.channel.id}, acceptedChannels=${[...acceptedChannelIds].join(',')}`);
         return false;
     }
     const body = [msg.content || '', ...(msg.embeds || []).flatMap(e => [e.title || '', e.description || '', ...(e.fields || []).flatMap(f => [f.name || '', f.value || ''])])].join('\n');
