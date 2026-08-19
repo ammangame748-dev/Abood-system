@@ -3725,9 +3725,21 @@ client.on('interactionCreate', async (interaction) => {
             const receivers = cfg.creditReceivers.map(id => `<@${id}>`).join(' أو ');
             // ProBot يخصم 5% تقريباً؛ السعر في الداشبورد هو المبلغ الصافي الذي يجب أن يظهر في رسالة ProBot.
             const grossTransfer = Math.ceil(item.price / 0.95);
-            const paymentCommands = cfg.creditReceivers.map(id => `#credit <@${id}> ${grossTransfer}`).join('\\n');
-            const paymentText = `حوّل ${grossTransfer} كريدت إلى أحد المستلمين. بعد الرسوم يجب أن تظهر رسالة ProBot بمبلغ ${item.price}$.\\n${paymentCommands}\\nبعد نجاح التحويل، سيمنحك البوت الرتبة تلقائياً. صلاحية الطلب 10 دقائق.`;
-            const e = new EmbedBuilder().setTitle(`شراء رتبة: ${item.label}`).setColor(0xffb703).setDescription(item.details || 'اتبع خطوات الدفع التالية.').addFields({ name: 'السعر النهائي', value: `${item.price} كريدت`, inline: true }, { name: 'المستلمون', value: receivers.slice(0, 1024), inline: true }, { name: 'طريقة الدفع', value: paymentText }).setFooter({ text: `رقم العملية: ${order._id}` });
+            const paymentCommands = cfg.creditReceivers.map(id => `#credit <@${id}> ${grossTransfer}`).join('\n');
+            const e = new EmbedBuilder()
+                .setTitle(`شراء رتبة: ${item.label}`)
+                .setColor(0xffb703)
+                .setDescription(item.details || 'تفاصيل الرتبة موجودة في إعدادات المتجر.')
+                .addFields(
+                    { name: 'الرتبة المطلوبة', value: `<@&${role.id}>`, inline: false },
+                    { name: 'سعر الرتبة الحقيقي', value: `${item.price} كريدت`, inline: true },
+                    { name: 'المبلغ بعد احتساب الضريبة', value: `${grossTransfer} كريدت`, inline: true },
+                    { name: 'المبلغ الذي سيصل للمستلم', value: `${item.price} كريدت`, inline: true },
+                    { name: 'مستلمو الكريدت', value: receivers.slice(0, 1024), inline: false },
+                    { name: 'أوامر التحويل', value: paymentCommands.slice(0, 1024), inline: false },
+                    { name: 'التأكيد', value: `بعد وصول رسالة ProBot بمبلغ ${item.price}$ إلى أحد المستلمين، سيتم إعطاؤك الرتبة تلقائياً. صلاحية العملية 10 دقائق.` }
+                )
+                .setFooter({ text: `رقم العملية: ${order._id}` });
             return interaction.reply({ embeds: [e], ephemeral: true });
         }
 
