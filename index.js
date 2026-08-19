@@ -2471,14 +2471,21 @@ async function verifyRoleStorePayment(msg) {
     const cfg = await RoleStoreConfig.findOne({ guildId: msg.guild.id });
     if (!cfg || msg.author.id !== cfg.probotId || msg.channel.id !== cfg.channelId) return false;
     const body = [msg.content || '', ...(msg.embeds || []).flatMap(e => [e.title || '', e.description || '', ...(e.fields || []).flatMap(f => [f.name || '', f.value || ''])])].join('\n');
-    const normalized = body.replace(/[،,]/g, ' ').replace(/\u0660/g, '0').replace(/\u0661/g, '1').replace(/\u0662/g, '2').replace(/\u0663/g, '3').replace(/\u0664/g, '4').replace(/\u0665/g, '5').replace(/\u0666/g, '6').replace(/\u0667/g, '7').replace(/\u0668/g, '8').replace(/\u0669/g, '9');
-    const candidates = await RoleStoreOrder.find({ guildId: msg.guild.id, channelId: msg.channel.id, status: 'pending', expiresAt: { $gt: new Date() } }).sort({ createdAt: 1 }).limit(25);
+    const normalized = body
+        .replace(/[،,]/g, ',')
+        .replace(/\u0660/g, '0').replace(/\u0661/g, '1').replace(/\u0662/g, '2').replace(/\u0663/g, '3').replace(/\u0664/g, '4')
+        .replace(/\u0665/g, '5').replace(/\u0666/g, '6').replace(/\u0667/g, '7').replace(/\u0668/g, '8').replace(/\u0669/g, '9');
+
+    // مثال الرسالة المعتمدة: **ـ kl__masri، قام بتحويل `$9501` لـ <@!934215537150554113> **
+    // نتجاهل اسم المحوّل تماماً، ونقرأ فقط المبلغ وID المستلم.
+    const transferMatch = normalized.match(/قام\s+بتحويل\s+[`*_~\s]*\$?\s*([\d,]+(?:\.\d+)?)\s*[`*_~\s]*ل(?:ـ|ى)?\s*<@!?([0-9]{15,22})>/i);
+    if (!transferMatch) return false;
+    const transferredAmount = Number(String(transferMatch[1]).replace(/,/g, ''));
+    const receiverId = transferMatch[2];
+    if (!Number.isFinite(transferredAmount) || !cfg.creditReceivers.includes(receiverId)) return false;
+
+    const candidates = await RoleStoreOrder.find({ guildId: msg.guild.id, channelId: msg.channel.id, status: 'pending', price: transferredAmount, expiresAt: { $gt: new Date() } }).sort({ createdAt: 1 }).limit(25);
     for (const order of candidates) {
-        const amountMatch = new RegExp(`(?:^|\\D)${order.price}(?:\\D|$)`).test(normalized);
-        if (!amountMatch) continue;
-        const hasReceiver = cfg.creditReceivers.some(id => body.includes(id) || msg.mentions?.users?.has(id));
-        const hasUser = body.includes(order.userId) || body.includes(`<@${order.userId}>`);
-        if (!hasReceiver && !hasUser) continue;
         const claimed = await RoleStoreOrder.findOneAndUpdate({ _id: order._id, status: 'pending' }, { $set: { status: 'paid', paymentMessageId: msg.id, grantedAt: new Date() } }, { new: true });
         if (!claimed) continue;
         const member = await msg.guild.members.fetch(order.userId).catch(() => null);
