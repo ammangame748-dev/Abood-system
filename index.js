@@ -2488,15 +2488,17 @@ async function verifyRoleStorePayment(msg) {
     for (const order of candidates) {
         const claimed = await RoleStoreOrder.findOneAndUpdate({ _id: order._id, status: 'pending' }, { $set: { status: 'paid', paymentMessageId: msg.id, grantedAt: new Date() } }, { new: true });
         if (!claimed) continue;
-        const member = await msg.guild.members.fetch(order.userId).catch(() => null);
+        // receiverId هو مستلم الكريديت فقط. صاحب الرتبة دائماً هو userId المحفوظ عند ضغط العضو على الرتبة.
+        const buyerId = order.userId;
+        const member = await msg.guild.members.fetch(buyerId).catch(() => null);
         const role = msg.guild.roles.cache.get(order.roleId);
         if (!member || !role || role.managed || role.position >= msg.guild.members.me.roles.highest.position) {
             await RoleStoreOrder.updateOne({ _id: order._id }, { $set: { status: 'expired' } });
-            await msg.channel.send(`<@${order.userId}> تم التحقق من التحويل، لكن تعذر إعطاء الرتبة تلقائياً. تأكد أن رتبة البوت أعلى من الرتبة.`).catch(() => {});
+            await msg.channel.send(`<@${buyerId}> تم التحقق من التحويل، لكن تعذر إعطاء الرتبة تلقائياً. تأكد أن رتبة البوت أعلى من الرتبة.`).catch(() => {});
             return true;
         }
         await member.roles.add(role).catch(async () => { await RoleStoreOrder.updateOne({ _id: order._id }, { $set: { status: 'expired' } }); });
-        await msg.channel.send({ content: `<@${order.userId}> تم استلام التحويل بنجاح، وتم إعطاؤك رتبة **${role.name}**.` }).catch(() => {});
+        await msg.channel.send({ content: `<@${buyerId}> تم استلام التحويل بنجاح، وتم إعطاؤك رتبة **${role.name}**.` }).catch(() => {});
         return true;
     }
     return false;
