@@ -241,6 +241,37 @@ const Suggestion = mongoose.model('Suggestion', new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 }));
 
+
+const RoleStoreConfig = mongoose.model('RoleStoreConfig', new mongoose.Schema({
+    guildId: { type: String, unique: true, required: true },
+    channelId: { type: String, default: '' },
+    probotId: { type: String, default: process.env.PROBOT_ID || '282859044593598464' },
+    creditReceivers: { type: [String], default: [] },
+    title: { type: String, default: 'متجر الرتب' },
+    description: { type: String, default: 'اختر الرتبة التي تريد شراءها ثم حوّل الكريدت إلى أحد المستلمين.' },
+    roles: [{
+        roleId: String,
+        label: String,
+        price: { type: Number, min: 1 },
+        details: String
+    }],
+    panelMessageId: { type: String, default: '' }
+}, { timestamps: true }));
+
+const RoleStoreOrder = mongoose.model('RoleStoreOrder', new mongoose.Schema({
+    guildId: { type: String, required: true, index: true },
+    userId: { type: String, required: true, index: true },
+    roleId: { type: String, required: true },
+    roleLabel: String,
+    price: { type: Number, required: true },
+    channelId: String,
+    status: { type: String, enum: ['pending', 'paid', 'expired'], default: 'pending', index: true },
+    paymentMessageId: { type: String, default: '' },
+    grantedAt: Date,
+    expiresAt: { type: Date, index: true },
+    createdAt: { type: Date, default: Date.now }
+}));
+
 const TicketConfig = mongoose.model('TicketConfig', new mongoose.Schema({
     guildId: String,
     channelId: String,
@@ -629,6 +660,10 @@ function ui(guild, active, content) {
             توزيع الرتب
         </a>
         <a class="${active === 'notificationroles' ? 'active' : ''}" href="/manage/${guild.id}/notification-roles">🔔 رتب الإشعارات</a>
+        <a class="${active === 'rolestore' ? 'active' : ''}" href="/manage/${guild.id}/role-store">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h18v15H3z"/><path d="M7 6V4h10v2M3 10h18M8 14h8M8 18h5"/></svg>
+            متجر الرتب
+        </a>
         <a class="${active === 'roles' ? 'active' : ''}" href="/manage/${guild.id}/roles">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             الرتب
@@ -2201,6 +2236,77 @@ app.post('/save/:guildId/levels', checkAuth, async (req, res) => {
     res.redirect(`/manage/${req.params.guildId}/levels`);
 });
 
+// --- [ Role Store ] ---
+app.get('/manage/:guildId/role-store', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    if (!g) return res.redirect('/dashboard');
+    const c = await RoleStoreConfig.findOne({ guildId: g.id }) || {};
+    const esc = (x) => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const roles = g.roles.cache.filter(r => r.id !== g.id && !r.managed).sort((a, b) => b.position - a.position);
+    const saved = Array.from({ length: 10 }, (_, i) => c.roles?.[i] || {});
+    const receivers = (c.creditReceivers || []).join(', ');
+    const content = `<form method="POST" action="/save/${g.id}/role-store">
+        <div class="card">
+            <h3>متجر الرتب</h3>
+            <p style="color:var(--text-muted)">حدد الروم والرتب والأسعار، وسيتم إرسال منيو الشراء تلقائياً.</p>
+            <label>روم إرسال المتجر</label>
+            <select name="channelId" required><option value="">-- اختر الروم --</option>${g.channels.cache.filter(x => x.type === ChannelType.GuildText).map(x => `<option value="${x.id}" ${c.channelId === x.id ? 'selected' : ''}># ${esc(x.name)}</option>`).join('')}</select>
+            <label>آيدي ProBot</label>
+            <input name="probotId" value="${esc(c.probotId || process.env.PROBOT_ID || '282859044593598464')}" placeholder="282859044593598464" required>
+            <label>آيديات مستلمي الكريدت</label>
+            <input name="creditReceivers" value="${esc(receivers)}" placeholder="123..., 456..." required>
+            <small style="color:var(--text-muted)">افصل بين الآيديات بفاصلة أو مسافة. يكفي التحويل إلى أي مستلم منها.</small>
+            <label>عنوان الـ Embed</label><input name="title" value="${esc(c.title || 'متجر الرتب')}" maxlength="256" required>
+            <label>وصف الـ Embed</label><textarea name="description" maxlength="4000" required>${esc(c.description || 'اختر الرتبة التي تريد شراءها ثم حوّل الكريدت إلى أحد المستلمين.')}</textarea>
+            <h4 style="margin-top:18px">الرتب حتى 10</h4>
+            ${saved.map((x, i) => `<div style="display:grid;grid-template-columns:1.4fr 1fr 0.7fr 2fr;gap:8px;margin:8px 0">
+                <select name="role_id_${i}"><option value="">-- الرتبة ${i + 1} --</option>${roles.map(r => `<option value="${r.id}" ${x.roleId === r.id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select>
+                <input name="role_label_${i}" value="${esc(x.label)}" placeholder="اسم الخيار">
+                <input name="role_price_${i}" type="number" min="1" step="1" value="${esc(x.price)}" placeholder="السعر">
+                <input name="role_details_${i}" value="${esc(x.details)}" placeholder="تفاصيل الرتبة">
+            </div>`).join('')}
+            <button class="btn-save" style="margin-top:12px">حفظ وإرسال المنيو</button>
+        </div>
+    </form>`;
+    res.send(ui(g, 'rolestore', content));
+});
+
+app.post('/save/:guildId/role-store', checkAuth, async (req, res) => {
+    try {
+        const { guildId } = req.params;
+        const g = client.guilds.cache.get(guildId);
+        if (!g) return res.status(404).send('السيرفر غير موجود');
+        const channel = g.channels.cache.get(String(req.body.channelId || ''));
+        if (!channel || channel.type !== ChannelType.GuildText) return res.status(400).send('اختر روم نصي صحيح');
+        const probotId = String(req.body.probotId || '').trim();
+        if (!/^\d{15,22}$/.test(probotId)) return res.status(400).send('آيدي ProBot غير صحيح');
+        const creditReceivers = String(req.body.creditReceivers || '').split(/[\s,،]+/).map(x => x.trim()).filter(x => /^\d{15,22}$/.test(x));
+        if (!creditReceivers.length) return res.status(400).send('أدخل آيدي مستلم واحد على الأقل');
+        const roles = [];
+        for (let i = 0; i < 10; i++) {
+            const roleId = String(req.body[`role_id_${i}`] || '').trim();
+            const role = g.roles.cache.get(roleId);
+            const label = String(req.body[`role_label_${i}`] || '').trim();
+            const details = String(req.body[`role_details_${i}`] || '').trim();
+            const price = Number(req.body[`role_price_${i}`]);
+            if (!roleId && !label && !details && !req.body[`role_price_${i}`]) continue;
+            if (!role || role.managed || role.id === g.id || !label || !Number.isInteger(price) || price < 1) return res.status(400).send(`بيانات الرتبة رقم ${i + 1} غير صحيحة`);
+            roles.push({ roleId, label: label.slice(0, 100), price, details: details.slice(0, 100) });
+        }
+        if (!roles.length) return res.status(400).send('أدخل رتبة واحدة على الأقل');
+        const cfg = await RoleStoreConfig.findOneAndUpdate({ guildId }, { $set: { guildId, channelId: channel.id, probotId, creditReceivers, title: String(req.body.title || 'متجر الرتب').slice(0, 256), description: String(req.body.description || '').slice(0, 4000), roles } }, { upsert: true, new: true });
+        const embed = new EmbedBuilder().setTitle(cfg.title).setDescription(cfg.description).setColor(0x1e90ff).setTimestamp();
+        const menu = new StringSelectMenuBuilder().setCustomId('role_store_menu').setPlaceholder('اختر الرتبة التي تريد شراءها').setMinValues(1).setMaxValues(1).addOptions(cfg.roles.slice(0, 10).map(r => ({ label: r.label, value: r.roleId, description: `${r.price} كريدت${r.details ? ` - ${r.details}` : ''}`.slice(0, 100) })));
+        const sent = await channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
+        cfg.panelMessageId = sent.id;
+        await cfg.save();
+        res.redirect(`/manage/${guildId}/role-store?saved=1`);
+    } catch (err) {
+        console.error('[Role Store Save Error]', err);
+        res.status(500).send('حدث خطأ أثناء حفظ متجر الرتب');
+    }
+});
+
 // --- [ Roles Panel ] ---
 app.get('/manage/:guildId/roles', checkAuth, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
@@ -2359,11 +2465,42 @@ app.post('/save/:guildId/mod', checkAuth, async (req, res) => {
 
 
 
+
+async function verifyRoleStorePayment(msg) {
+    if (!msg.guild || !msg.author?.bot) return false;
+    const cfg = await RoleStoreConfig.findOne({ guildId: msg.guild.id });
+    if (!cfg || msg.author.id !== cfg.probotId || msg.channel.id !== cfg.channelId) return false;
+    const body = [msg.content || '', ...(msg.embeds || []).flatMap(e => [e.title || '', e.description || '', ...(e.fields || []).flatMap(f => [f.name || '', f.value || ''])])].join('\n');
+    const normalized = body.replace(/[،,]/g, ' ').replace(/\u0660/g, '0').replace(/\u0661/g, '1').replace(/\u0662/g, '2').replace(/\u0663/g, '3').replace(/\u0664/g, '4').replace(/\u0665/g, '5').replace(/\u0666/g, '6').replace(/\u0667/g, '7').replace(/\u0668/g, '8').replace(/\u0669/g, '9');
+    const candidates = await RoleStoreOrder.find({ guildId: msg.guild.id, channelId: msg.channel.id, status: 'pending', expiresAt: { $gt: new Date() } }).sort({ createdAt: 1 }).limit(25);
+    for (const order of candidates) {
+        const amountMatch = new RegExp(`(?:^|\\D)${order.price}(?:\\D|$)`).test(normalized);
+        if (!amountMatch) continue;
+        const hasReceiver = cfg.creditReceivers.some(id => body.includes(id) || msg.mentions?.users?.has(id));
+        const hasUser = body.includes(order.userId) || body.includes(`<@${order.userId}>`);
+        if (!hasReceiver && !hasUser) continue;
+        const claimed = await RoleStoreOrder.findOneAndUpdate({ _id: order._id, status: 'pending' }, { $set: { status: 'paid', paymentMessageId: msg.id, grantedAt: new Date() } }, { new: true });
+        if (!claimed) continue;
+        const member = await msg.guild.members.fetch(order.userId).catch(() => null);
+        const role = msg.guild.roles.cache.get(order.roleId);
+        if (!member || !role || role.managed || role.position >= msg.guild.members.me.roles.highest.position) {
+            await RoleStoreOrder.updateOne({ _id: order._id }, { $set: { status: 'expired' } });
+            await msg.channel.send(`<@${order.userId}> تم التحقق من التحويل، لكن تعذر إعطاء الرتبة تلقائياً. تأكد أن رتبة البوت أعلى من الرتبة.`).catch(() => {});
+            return true;
+        }
+        await member.roles.add(role).catch(async () => { await RoleStoreOrder.updateOne({ _id: order._id }, { $set: { status: 'expired' } }); });
+        await msg.channel.send({ content: `<@${order.userId}> تم استلام التحويل بنجاح، وتم إعطاؤك رتبة **${role.name}**.` }).catch(() => {});
+        return true;
+    }
+    return false;
+}
+
 // ==========================================
 // 10. Discord Event Handlers
 // ==========================================
 
-client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) return;
+client.on('messageCreate', async (msg) => {if (!msg.guild) return;
+    if (msg.author.bot) { await verifyRoleStorePayment(msg).catch(err => console.error('[Role Store Payment Error]', err)); return; }
 
     // --- [ نظام اختصارات الأوامر الإدارية المطور ] ---
     try {
@@ -3563,6 +3700,24 @@ client.on('interactionCreate', async (interaction) => {
                     .setColor(0x1e90ff);
                 return interaction.reply({ embeds: [embed] });
             }
+        }
+
+        // --- [ Role Store Select Menu ] ---
+        if (interaction.isStringSelectMenu() && interaction.customId === 'role_store_menu') {
+            const cfg = await RoleStoreConfig.findOne({ guildId: interaction.guild.id });
+            const selectedRoleId = interaction.values[0];
+            const item = cfg?.roles?.find(r => r.roleId === selectedRoleId);
+            const role = interaction.guild.roles.cache.get(selectedRoleId);
+            if (!cfg || !item || !role) return interaction.reply({ content: 'هذه الرتبة غير متاحة حالياً.', ephemeral: true });
+            if (role.managed || role.position >= interaction.guild.members.me.roles.highest.position) return interaction.reply({ content: 'لا يمكن للبوت إعطاء هذه الرتبة. ارفع رتبة البوت فوقها.', ephemeral: true });
+            const active = await RoleStoreOrder.findOne({ guildId: interaction.guild.id, userId: interaction.user.id, status: 'pending', expiresAt: { $gt: new Date() } });
+            if (active) return interaction.reply({ content: `لديك عملية شراء معلقة. حوّل ${active.price} كريدت أولاً أو انتظر انتهاء العملية.`, ephemeral: true });
+            const order = await RoleStoreOrder.create({ guildId: interaction.guild.id, userId: interaction.user.id, roleId: role.id, roleLabel: item.label, price: item.price, channelId: interaction.channel.id, expiresAt: new Date(Date.now() + 10 * 60 * 1000) });
+            const receivers = cfg.creditReceivers.map(id => `<@${id}>`).join(' أو ');
+            const paymentCommands = cfg.creditReceivers.map(id => `#credit <@${id}> ${item.price}`).join('\\n');
+            const paymentText = `حوّل المبلغ إلى أحد المستلمين بالأمر المناسب:\n${paymentCommands}\nبعد نجاح التحويل، سيمنحك البوت الرتبة تلقائياً. صلاحية الطلب 10 دقائق.`;
+            const e = new EmbedBuilder().setTitle(`شراء رتبة: ${item.label}`).setColor(0xffb703).setDescription(item.details || 'اتبع خطوات الدفع التالية.').addFields({ name: 'السعر النهائي', value: `${item.price} كريدت`, inline: true }, { name: 'المستلمون', value: receivers.slice(0, 1024), inline: true }, { name: 'طريقة الدفع', value: paymentText }).setFooter({ text: `رقم العملية: ${order._id}` });
+            return interaction.reply({ embeds: [e], ephemeral: true });
         }
 
         // --- [ Notification Roles Select Menu ] ---
