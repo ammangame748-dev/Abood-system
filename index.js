@@ -2469,7 +2469,16 @@ app.post('/save/:guildId/mod', checkAuth, async (req, res) => {
 async function verifyRoleStorePayment(msg) {
     if (!msg.guild || !msg.author?.bot) return false;
     const cfg = await RoleStoreConfig.findOne({ guildId: msg.guild.id });
-    if (!cfg || msg.author.id !== cfg.probotId || msg.channel.id !== cfg.channelId) return false;
+    if (!cfg) return false;
+    const configuredProbotId = String(cfg.probotId || process.env.PROBOT_ID || '282859044593598464').trim();
+    if (msg.author.id !== configuredProbotId) {
+        console.log(`[Role Store] تجاهل رسالة بوت غير مطابقة: author=${msg.author.id}, configuredProbot=${configuredProbotId}`);
+        return false;
+    }
+    if (msg.channel.id !== cfg.channelId) {
+        console.log(`[Role Store] رسالة ProBot صحيحة لكن الروم مختلف: messageChannel=${msg.channel.id}, storeChannel=${cfg.channelId}`);
+        return false;
+    }
     const body = [msg.content || '', ...(msg.embeds || []).flatMap(e => [e.title || '', e.description || '', ...(e.fields || []).flatMap(f => [f.name || '', f.value || ''])])].join('\n');
     const normalized = body
         .replace(/[،,]/g, ',')
@@ -2485,9 +2494,21 @@ async function verifyRoleStorePayment(msg) {
     if (!transferMatch) return false;
     const transferredAmount = Number(String(transferMatch[1]).replace(/,/g, ''));
     const receiverId = transferMatch[2];
-    if (!Number.isFinite(transferredAmount) || !cfg.creditReceivers.includes(receiverId)) return false;
+    const receiverIds = (cfg.creditReceivers || []).map(id => String(id).trim()).filter(Boolean);
+    if (!Number.isFinite(transferredAmount) || !receiverIds.includes(receiverId)) {
+        console.log(`[Role Store] المبلغ أو المستلم غير مطابق: amount=${transferredAmount}, receiver=${receiverId}, configuredReceivers=${receiverIds.join(',')}`);
+        return false;
+    }
 
-    const candidates = await RoleStoreOrder.find({ guildId: msg.guild.id, channelId: msg.channel.id, status: 'pending', price: transferredAmount, expiresAt: { $gt: new Date() } }).sort({ createdAt: 1 }).limit(25);
+    let candidates = await RoleStoreOrder.find({ guildId: msg.guild.id, channelId: msg.channel.id, status: 'pending', price: transferredAmount, expiresAt: { $gt: new Date() } }).sort({ createdAt: 1 }).limit(25);
+    // إذا تم الضغط على المنيو في روم مختلف عن روم وصول رسالة ProBot، ابحث داخل طلبات السيرفر المعلقة.
+    if (!candidates.length) {
+        candidates = await RoleStoreOrder.find({ guildId: msg.guild.id, status: 'pending', price: transferredAmount, expiresAt: { $gt: new Date() } }).sort({ createdAt: 1 }).limit(25);
+    }
+    if (!candidates.length) {
+        console.log(`[Role Store] رسالة الدفع مطابقة، لكن لا توجد عملية معلقة بالمبلغ ${transferredAmount}.`);
+        return false;
+    }
     for (const order of candidates) {
         const claimed = await RoleStoreOrder.findOneAndUpdate({ _id: order._id, status: 'pending' }, { $set: { status: 'paid', paymentMessageId: msg.id, grantedAt: new Date() } }, { new: true });
         if (!claimed) continue;
