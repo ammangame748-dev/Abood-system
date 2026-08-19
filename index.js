@@ -250,6 +250,7 @@ const RoleStoreConfig = mongoose.model('RoleStoreConfig', new mongoose.Schema({
     creditReceivers: { type: [String], default: [] },
     title: { type: String, default: 'متجر الرتب' },
     description: { type: String, default: 'اختر الرتبة التي تريد شراءها ثم حوّل الكريدت إلى أحد المستلمين.' },
+    embedImagePath: { type: String, default: '' },
     roles: [{
         roleId: String,
         label: String,
@@ -412,7 +413,14 @@ const storage = multer.diskStorage({
         cb(null, Date.now() + path.extname(file.originalname));
     }
 });
-const upload = multer({ storage });
+const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (/^image\/(png|jpe?g|gif|webp)$/i.test(file.mimetype)) return cb(null, true);
+        cb(new Error('يسمح برفع صور PNG أو JPG أو GIF أو WEBP فقط'));
+    }
+});
 
 function publicUploadUrl(filePath) {
     const base = (process.env.RENDER_EXTERNAL_URL || process.env.BASE_URL || '').replace(/\/$/, '');
@@ -2246,7 +2254,7 @@ app.get('/manage/:guildId/role-store', checkAuth, async (req, res) => {
     const roles = g.roles.cache.filter(r => r.id !== g.id && !r.managed).sort((a, b) => b.position - a.position);
     const saved = Array.from({ length: 10 }, (_, i) => c.roles?.[i] || {});
     const receivers = (c.creditReceivers || []).join(', ');
-    const content = `<form method="POST" action="/save/${g.id}/role-store">
+    const content = `<form method="POST" action="/save/${g.id}/role-store" enctype="multipart/form-data">
         <div class="card">
             <h3>متجر الرتب</h3>
             <p style="color:var(--text-muted)">حدد الروم والرتب والأسعار، وسيتم إرسال منيو الشراء تلقائياً.</p>
@@ -2260,6 +2268,10 @@ app.get('/manage/:guildId/role-store', checkAuth, async (req, res) => {
             <label>آيديات مستلمي الكريدت</label>
             <input name="creditReceivers" value="${esc(receivers)}" placeholder="123..., 456..." required>
             <small style="color:var(--text-muted)">افصل بين الآيديات بفاصلة أو مسافة. يكفي التحويل إلى أي مستلم منها.</small>
+            <label>صورة إيمبد المتجر</label>
+            <input name="embedImage" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+            <small style="color:var(--text-muted)">اختر صورة من جهازك، بحد أقصى 5MB. الصورة اختيارية وتظهر أعلى إيمبد المتجر.</small>
+            ${c.embedImagePath ? `<div style="margin:8px 0;color:var(--text-muted)">توجد صورة محفوظة حالياً: ${esc(path.basename(c.embedImagePath))}<label style="display:inline;margin-right:12px"><input type="checkbox" name="removeEmbedImage" value="1"> حذف الصورة الحالية</label></div>` : ''}
             <label>عنوان الـ Embed</label><input name="title" value="${esc(c.title || 'متجر الرتب')}" maxlength="256" required>
             <label>وصف الـ Embed</label><textarea name="description" maxlength="4000" required>${esc(c.description || 'اختر الرتبة التي تريد شراءها ثم حوّل الكريدت إلى أحد المستلمين.')}</textarea>
             <h4 style="margin-top:18px">الرتب حتى 10</h4>
@@ -2275,7 +2287,7 @@ app.get('/manage/:guildId/role-store', checkAuth, async (req, res) => {
     res.send(ui(g, 'rolestore', content));
 });
 
-app.post('/save/:guildId/role-store', checkAuth, async (req, res) => {
+app.post('/save/:guildId/role-store', checkAuth, upload.single('embedImage'), async (req, res) => {
     try {
         const { guildId } = req.params;
         const g = client.guilds.cache.get(guildId);
@@ -2300,10 +2312,27 @@ app.post('/save/:guildId/role-store', checkAuth, async (req, res) => {
             roles.push({ roleId, label: label.slice(0, 100), price, details: details.slice(0, 100) });
         }
         if (!roles.length) return res.status(400).send('أدخل رتبة واحدة على الأقل');
-        const cfg = await RoleStoreConfig.findOneAndUpdate({ guildId }, { $set: { guildId, channelId: channel.id, paymentChannelId: paymentChannel.id, probotId, creditReceivers, title: String(req.body.title || 'متجر الرتب').slice(0, 256), description: String(req.body.description || '').slice(0, 4000), roles } }, { upsert: true, new: true });
+        const existing = await RoleStoreConfig.findOne({ guildId });
+        let embedImagePath = existing?.embedImagePath || '';
+        if (req.file) {
+            if (embedImagePath && fs.existsSync(embedImagePath)) fs.unlinkSync(embedImagePath);
+            embedImagePath = req.file.path;
+        } else if (req.body.removeEmbedImage === '1') {
+            if (embedImagePath && fs.existsSync(embedImagePath)) fs.unlinkSync(embedImagePath);
+            embedImagePath = '';
+        }
+        const cfg = await RoleStoreConfig.findOneAndUpdate({ guildId }, { $set: { guildId, channelId: channel.id, paymentChannelId: paymentChannel.id, probotId, creditReceivers, title: String(req.body.title || 'متجر الرتب').slice(0, 256), description: String(req.body.description || '').slice(0, 4000), embedImagePath, roles } }, { upsert: true, new: true });
         const embed = new EmbedBuilder().setTitle(cfg.title).setDescription(cfg.description).setColor(0x1e90ff).setTimestamp();
+        const files = [];
+        if (cfg.embedImagePath && fs.existsSync(cfg.embedImagePath)) {
+            const imageName = path.basename(cfg.embedImagePath);
+            files.push(new AttachmentBuilder(cfg.embedImagePath).setName(imageName));
+            embed.setImage(`attachment://${imageName}`);
+        }
         const menu = new StringSelectMenuBuilder().setCustomId('role_store_menu').setPlaceholder('اختر الرتبة التي تريد شراءها').setMinValues(1).setMaxValues(1).addOptions(cfg.roles.slice(0, 10).map(r => ({ label: r.label, value: r.roleId, description: `${r.price} كريدت${r.details ? ` - ${r.details}` : ''}`.slice(0, 100) })));
-        const sent = await channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
+        const messagePayload = { embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] };
+        if (files.length) messagePayload.files = files;
+        const sent = await channel.send(messagePayload);
         cfg.panelMessageId = sent.id;
         await cfg.save();
         res.redirect(`/manage/${guildId}/role-store?saved=1`);
