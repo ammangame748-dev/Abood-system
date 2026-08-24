@@ -2498,23 +2498,40 @@ app.post('/save/:guildId/mod', checkAuth, async (req, res) => {
     res.redirect(`/manage/${req.params.guildId}/mod`);
 });
 
-
-
-
 async function verifyRoleStorePayment(msg) {
     if (!msg.guild || !msg.author?.bot) return false;
     const cfg = await RoleStoreConfig.findOne({ guildId: msg.guild.id });
     if (!cfg) return false;
-    const acceptedProbotIds = new Set([cfg.probotId, process.env.PROBOT_ID, '1535476663846965321'].map(String).map(x => x.trim()).filter(Boolean));
-    if (!acceptedProbotIds.has(msg.author.id)) {
+
+    // قبول آيديات Discord الرقمية فقط ومنع ظهور undefined من متغيرات البيئة.
+    const cleanDiscordIds = (...values) => values
+        .flatMap(value => Array.isArray(value) ? value : [value])
+        .map(value => String(value ?? '').trim())
+        .filter(value => /^\d{15,22}$/.test(value));
+
+    const acceptedProbotIds = new Set(cleanDiscordIds(
+        cfg.probotId,
+        process.env.PROBOT_ID,
+        '282859044593598464',
+        '1535476663846965321'
+    ));
+    if (!acceptedProbotIds.has(String(msg.author.id))) {
         console.log(`[Role Store] تجاهل رسالة بوت غير مطابقة: author=${msg.author.id}, acceptedProbotIds=${[...acceptedProbotIds].join(',')}`);
         return false;
     }
-    const acceptedChannelIds = new Set([cfg.paymentChannelId, process.env.ROLE_STORE_PAYMENT_CHANNEL_ID, '1251304201741402113'].map(String).map(x => x.trim()).filter(Boolean));
-    if (!acceptedChannelIds.has(msg.channel.id)) {
-        console.log(`[Role Store] رسالة ProBot صحيحة لكن الروم مختلف: messageChannel=${msg.channel.id}, acceptedPaymentChannels=${[...acceptedChannelIds].join(',')}`);
-        return false;
+
+    const acceptedChannelIds = new Set(cleanDiscordIds(
+        cfg.paymentChannelId,
+        process.env.ROLE_STORE_PAYMENT_CHANNEL_ID,
+        process.env.ROLE_STORE_PAYMENT_CHANNEL_IDS?.split(/[\\s,،]+/)
+    ));
+
+    // قد يرسل ProBot تأكيد التحويل في روم مختلف عن روم تنفيذ أمر التحويل.
+    // لا نرفض الرسالة هنا؛ يتم التحقق لاحقاً من النص والمبلغ والمستلم والطلب المعلق.
+    if (!acceptedChannelIds.has(String(msg.channel.id))) {
+        console.warn(`[Role Store] روم ProBot مختلف، ستتم متابعة التحقق: messageChannel=${msg.channel.id}, acceptedPaymentChannels=${[...acceptedChannelIds].join(',')}`);
     }
+
     const body = [msg.content || '', ...(msg.embeds || []).flatMap(e => [e.title || '', e.description || '', ...(e.fields || []).flatMap(f => [f.name || '', f.value || ''])])].join('\n');
     const normalized = body
         .replace(/[،,]/g, ',')
