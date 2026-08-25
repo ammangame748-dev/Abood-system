@@ -479,121 +479,24 @@ app.get('/login', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Abood System  - تسجيل الدخول</title>
-    <link href="https://fonts.googleapis.com/css2?family=Changa:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <title>Abood System | دخول آمن</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        :root {
-            --blue: #1e90ff;
-            --blue-dark: #0a6ecc;
-            --red: #e63946;
-            --red-light: #ff6b6b;
-            --black: #050508;
-            --dark: #0d0d18;
-            --card: rgba(10, 10, 25, 0.85);
-            --border: rgba(30, 144, 255, 0.25);
-        }
-        body {
-            font-family: 'Changa', sans-serif;
-            background: var(--black);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            position: relative;
-        }
-        .bg-particles {
-            position: fixed; inset: 0; z-index: 0;
-            background: radial-gradient(ellipse at 20% 50%, rgba(30,144,255,0.08) 0%, transparent 60%),
-                        radial-gradient(ellipse at 80% 20%, rgba(230,57,70,0.06) 0%, transparent 50%),
-                        radial-gradient(ellipse at 50% 80%, rgba(30,144,255,0.05) 0%, transparent 50%);
-        }
-        .grid-bg {
-            position: fixed; inset: 0; z-index: 0;
-            background-image: linear-gradient(rgba(30,144,255,0.04) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(30,144,255,0.04) 1px, transparent 1px);
-            background-size: 50px 50px;
-        }
-        .login-wrapper {
-            position: relative; z-index: 10;
-            display: flex; flex-direction: column; align-items: center; gap: 30px;
-        }
-        .logo-area {
-            text-align: center;
-        }
-        .logo-text {
-            font-size: 64px; font-weight: 800; letter-spacing: 8px;
-            background: linear-gradient(135deg, var(--blue), #ffffff, var(--red));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            filter: drop-shadow(0 0 30px rgba(30,144,255,0.4));
-            animation: logoGlow 3s ease-in-out infinite alternate;
-        }
-        @keyframes logoGlow {
-            from { filter: drop-shadow(0 0 20px rgba(30,144,255,0.3)); }
-            to   { filter: drop-shadow(0 0 50px rgba(30,144,255,0.7)); }
-        }
-        .logo-sub {
-            color: rgba(255,255,255,0.4); font-size: 14px; letter-spacing: 4px; margin-top: 5px;
-        }
-        .login-card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 24px;
-            padding: 50px 60px;
-            text-align: center;
-            backdrop-filter: blur(30px);
-            box-shadow: 0 0 60px rgba(30,144,255,0.1), 0 0 120px rgba(0,0,0,0.5);
-            min-width: 380px;
-            position: relative;
-            overflow: hidden;
-        }
-        .login-card::before {
-            content: '';
-            position: absolute; top: 0; left: 0; right: 0; height: 2px;
-            background: linear-gradient(90deg, transparent, var(--blue), var(--red), transparent);
-            animation: scanLine 3s linear infinite;
-        }
-        @keyframes scanLine {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-        }
-        .login-card h2 { color: white; font-size: 22px; margin-bottom: 8px; }
-        .login-card p { color: rgba(255,255,255,0.45); font-size: 14px; margin-bottom: 35px; }
-        .btn-discord {
-            display: inline-flex; align-items: center; gap: 12px;
-            background: linear-gradient(135deg, var(--blue), var(--blue-dark));
-            color: white; padding: 16px 40px; border-radius: 14px;
-            text-decoration: none; font-weight: 700; font-size: 16px;
-            transition: all 0.3s; border: 1px solid rgba(30,144,255,0.3);
-            box-shadow: 0 8px 30px rgba(30,144,255,0.3);
-        }
-        .btn-discord:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(30,144,255,0.5);
-            filter: brightness(1.1);
-        }
+        :root{--ink:#07111f;--panel:rgba(9,24,40,.78);--line:rgba(148,224,255,.2);--cyan:#6de7ff;--violet:#a78bfa;--mint:#7cf7c6;--muted:#9fb3c8}
+        *{box-sizing:border-box}body{margin:0;min-height:100vh;overflow:hidden;font-family:'Cairo',sans-serif;color:#f5fbff;background:#06101d}
+        body:before{content:"";position:fixed;inset:0;background:radial-gradient(circle at 15% 20%,rgba(109,231,255,.18),transparent 32%),radial-gradient(circle at 82% 10%,rgba(167,139,250,.2),transparent 30%),radial-gradient(circle at 70% 90%,rgba(124,247,198,.1),transparent 35%),linear-gradient(125deg,#06101d,#0a1728 55%,#08111d);z-index:-3}
+        body:after{content:"";position:fixed;inset:-50%;background-image:linear-gradient(rgba(109,231,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(109,231,255,.045) 1px,transparent 1px);background-size:54px 54px;transform:rotate(12deg);animation:drift 22s linear infinite;z-index:-2}
+        .noise{position:fixed;inset:0;opacity:.14;background-image:radial-gradient(rgba(255,255,255,.7) .7px,transparent .7px);background-size:5px 5px;z-index:-1;pointer-events:none}
+        .orb{position:fixed;border-radius:999px;filter:blur(8px);opacity:.45;animation:float 10s ease-in-out infinite}.orb.a{width:220px;height:220px;background:var(--cyan);top:-80px;right:8%}.orb.b{width:170px;height:170px;background:var(--violet);bottom:4%;left:8%;animation-delay:-4s}
+        .login-layout{min-height:100vh;display:grid;place-items:center;padding:24px}.login-panel{width:min(1050px,100%);display:grid;grid-template-columns:1.1fr .9fr;background:var(--panel);border:1px solid var(--line);border-radius:30px;box-shadow:0 30px 100px rgba(0,0,0,.42),0 0 0 1px rgba(255,255,255,.03) inset;backdrop-filter:blur(25px);overflow:hidden;animation:rise .8s cubic-bezier(.2,.8,.2,1)}
+        .hero{padding:58px;position:relative;background:linear-gradient(145deg,rgba(109,231,255,.09),transparent 45%),linear-gradient(315deg,rgba(167,139,250,.11),transparent 50%)}.hero:after{content:"✦";position:absolute;font-size:260px;line-height:1;left:22px;bottom:-28px;color:rgba(109,231,255,.06);transform:rotate(-14deg)}.eyebrow{color:var(--cyan);font-size:12px;letter-spacing:3px;font-weight:800}.brand{font-size:clamp(40px,6vw,74px);line-height:1.05;font-weight:900;margin:18px 0;background:linear-gradient(120deg,#fff 15%,var(--cyan),var(--violet));-webkit-background-clip:text;color:transparent}.hero p{max-width:490px;color:var(--muted);font-size:16px;line-height:2}.feature-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:34px}.feature{padding:9px 14px;border:1px solid rgba(255,255,255,.1);border-radius:999px;color:#d9eff8;background:rgba(255,255,255,.04);font-size:12px}.login-box{padding:58px 48px;display:flex;flex-direction:column;justify-content:center;background:rgba(3,12,22,.38);border-right:1px solid rgba(255,255,255,.06)}.login-box h1{font-size:28px;margin:0 0 8px}.login-box p{color:var(--muted);font-size:14px;margin:0 0 30px}.login-btn{display:flex;justify-content:center;align-items:center;gap:12px;padding:15px 20px;border-radius:15px;color:#06101d;text-decoration:none;font-weight:900;background:linear-gradient(110deg,var(--cyan),var(--mint));box-shadow:0 13px 30px rgba(109,231,255,.22);transition:.25s}.login-btn:hover{transform:translateY(-4px);box-shadow:0 18px 38px rgba(109,231,255,.34)}.discord-mark{width:24px;height:24px;border-radius:8px;background:#06101d;color:var(--cyan);display:grid;place-items:center;font-size:13px}.secure-note{margin-top:24px;text-align:center;color:#7890a6;font-size:11px}
+        @keyframes drift{to{transform:rotate(12deg) translate(54px,54px)}}@keyframes float{50%{transform:translate(28px,-22px) scale(1.08)}}@keyframes rise{from{opacity:0;transform:translateY(24px) scale(.98)}to{opacity:1;transform:none}}
+        @media(max-width:760px){body{overflow:auto}.login-panel{grid-template-columns:1fr}.hero{padding:38px 28px}.login-box{padding:38px 28px;border-right:0;border-top:1px solid rgba(255,255,255,.06)}.brand{font-size:48px}}
     </style>
 </head>
-<body>
-    <div class="bg-particles"></div>
-    <div class="grid-bg"></div>
-    <div class="login-wrapper">
-        <div class="logo-area">
-            <div class="logo-text">Abood System </div>
-            <div class="logo-sub">DISCORD BOT SYSTEM</div>
-        </div>
-        <div class="login-card">
-            <h2>مرحباً بك</h2>
-            <p>سجل دخولك عبر حساب ديسكورد للوصول للداشبورد</p>
-            <a href="/auth/discord" class="btn-discord">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.033.055a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
-                تسجيل الدخول بديسكورد
-            </a>
-        </div>
-    </div>
-</body>
-</html>`);
+<body><div class="noise"></div><div class="orb a"></div><div class="orb b"></div>
+<main class="login-layout"><section class="login-panel"><div class="hero"><div class="eyebrow">ABOOD SYSTEM / CONTROL CENTER</div><div class="brand">إدارة أذكى.<br>تحكم أسرع.</div><p>لوحة تحكم حديثة لإدارة سيرفراتك، حماية مجتمعك، ومتابعة كل التفاصيل من مكان واحد بتجربة سريعة وواضحة.</p><div class="feature-row"><span class="feature">حماية متقدمة</span><span class="feature">تحليلات مباشرة</span><span class="feature">تحكم كامل</span></div></div><div class="login-box"><div class="eyebrow">مرحباً بعودتك</div><h1>سجّل الدخول</h1><p>اربط حساب ديسكورد للوصول إلى مركز التحكم الخاص بك.</p><a href="/auth/discord" class="login-btn"><span class="discord-mark">◉</span>المتابعة عبر Discord</a><div class="secure-note">اتصال مشفّر · صلاحياتك محفوظة · وصول آمن</div></div></section></main></body></html>`);
 });
 
 app.get('/ping', (req, res) => res.send('I am alive!'));
@@ -603,474 +506,33 @@ app.get('/', (req, res) => res.redirect('/dashboard'));
 // 8. UI Helper Function
 // ==========================================
 function ui(guild, active, content) {
-    const showNav = guild.id ? 'flex' : 'none';
-    const guildName = guild.name || 'قائمة السيرفرات';
-
+    const guildName = guild.name || 'مركز التحكم';
     const navItems = guild.id ? `
-        <a class="${active === 'home' ? 'active' : ''}" href="/manage/${guild.id}/home">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-            الإحصائيات
-        </a>
-        <a class="${active === 'security' ? 'active' : ''}" href="/manage/${guild.id}/security">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            الحماية
-        </a>
-        
-        <a class="${active === 'kick' ? 'active' : ''}" href="/manage/${guild.id}/kick">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="var(--dark)"/></svg>
-            تنبيهات Kick
-        </a>
-        <a class="${active === 'admincmds' ? 'active' : ''}" href="/manage/${guild.id}/admincmds">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-            الأوامر الإدارية
-        </a>
-        <a class="${active === 'giverole' ? 'active' : ''}" href="/manage/${guild.id}/give-role">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.1L21 9l-4.7 4.5L17.5 20 12 16.8 6.5 20l1.2-6.5L3 9l6.6-.9L12 2z"/></svg>
-            إعطاء رتبة
-        </a>
-        <a class="${active === 'adminapply' ? 'active' : ''}" href="/manage/${guild.id}/admin-application">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zM8 11c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.91 1.97 3.45V19h7v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-            تقديم الإدارة
-        </a>
-        <a class="${active === 'adminpoints' ? 'active' : ''}" href="/manage/${guild.id}/admin-points">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.1L21 9l-4.7 4.5L17.5 20 12 16.8 6.5 20l1.2-6.5L3 9l6.6-.9L12 2z"/></svg>
-            نقاط الإدارة
-        </a>
-        <a class="${active === 'suggestions' ? 'active' : ''}" href="/manage/${guild.id}/suggestions">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
-            الاقتراحات
-        </a>
-        <a class="${active === 'logs' ? 'active' : ''}" href="/manage/${guild.id}/logs">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
-            اللوق
-        </a>
-        <a class="${active === 'tickets' ? 'active' : ''}" href="/manage/${guild.id}/tickets">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z"/></svg>
-            التذاكر
-        </a>
-        <a class="${active === 'autoreply' ? 'active' : ''}" href="/manage/${guild.id}/autoreply">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            الرد الآلي
-        </a>
-        <a class="${active === 'levels' ? 'active' : ''}" href="/manage/${guild.id}/levels">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>
-            المستويات
-        </a>
-        <a class="${active === 'welcome' ? 'active' : ''}" href="/manage/${guild.id}/welcome">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-            الترحيب
-        </a>
-        <a class="${active === 'giveaway' ? 'active' : ''}" href="/manage/${guild.id}/giveaway">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polyline points="20,12 20,22 4,22 4,12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
-            القيف اواي
-        </a>
-        <a class="${active === 'bulk_role' ? 'active' : ''}" href="/manage/${guild.id}/bulk-role">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            توزيع الرتب
-        </a>
-        <a class="${active === 'notificationroles' ? 'active' : ''}" href="/manage/${guild.id}/notification-roles">🔔 رتب الإشعارات</a>
-        <a class="${active === 'rolestore' ? 'active' : ''}" href="/manage/${guild.id}/role-store">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h18v15H3z"/><path d="M7 6V4h10v2M3 10h18M8 14h8M8 18h5"/></svg>
-            متجر الرتب
-        </a>
-        <a class="${active === 'roles' ? 'active' : ''}" href="/manage/${guild.id}/roles">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            الرتب
-        </a>
-        <a class="${active === 'mod' ? 'active' : ''}" href="/manage/${guild.id}/mod">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            أوامر الإشراف
-        </a>
-    ` : '';
+        <div class="nav-label">إدارة السيرفر</div>
+        <a class="${active === 'home' ? 'active' : ''}" href="/manage/${guild.id}/home"><span class="nav-icon">⌂</span><span>نظرة عامة</span></a>
+        <a class="${active === 'security' ? 'active' : ''}" href="/manage/${guild.id}/security"><span class="nav-icon">◈</span><span>الحماية</span></a>
+        <a class="${active === 'mod' ? 'active' : ''}" href="/manage/${guild.id}/mod"><span class="nav-icon">◒</span><span>أوامر الإشراف</span></a>
+        <a class="${active === 'admincmds' ? 'active' : ''}" href="/manage/${guild.id}/admincmds"><span class="nav-icon">⌘</span><span>الأوامر الإدارية</span></a>
+        <div class="nav-label">المجتمع</div>
+        <a class="${active === 'welcome' ? 'active' : ''}" href="/manage/${guild.id}/welcome"><span class="nav-icon">✦</span><span>الترحيب</span></a>
+        <a class="${active === 'levels' ? 'active' : ''}" href="/manage/${guild.id}/levels"><span class="nav-icon">↗</span><span>المستويات</span></a>
+        <a class="${active === 'autoreply' ? 'active' : ''}" href="/manage/${guild.id}/autoreply"><span class="nav-icon">↯</span><span>الرد الآلي</span></a>
+        <a class="${active === 'suggestions' ? 'active' : ''}" href="/manage/${guild.id}/suggestions"><span class="nav-icon">◇</span><span>الاقتراحات</span></a>
+        <a class="${active === 'tickets' ? 'active' : ''}" href="/manage/${guild.id}/tickets"><span class="nav-icon">▱</span><span>التذاكر</span></a>
+        <div class="nav-label">الأدوات</div>
+        <a class="${active === 'roles' ? 'active' : ''}" href="/manage/${guild.id}/roles"><span class="nav-icon">◆</span><span>الرتب</span></a>
+        <a class="${active === 'giverole' ? 'active' : ''}" href="/manage/${guild.id}/give-role"><span class="nav-icon">＋</span><span>إعطاء رتبة</span></a>
+        <a class="${active === 'bulk_role' ? 'active' : ''}" href="/manage/${guild.id}/bulk-role"><span class="nav-icon">⇄</span><span>توزيع الرتب</span></a>
+        <a class="${active === 'rolestore' ? 'active' : ''}" href="/manage/${guild.id}/role-store"><span class="nav-icon">▣</span><span>متجر الرتب</span></a>
+        <a class="${active === 'giveaway' ? 'active' : ''}" href="/manage/${guild.id}/giveaway"><span class="nav-icon">◇</span><span>القيف أواي</span></a>
+        <a class="${active === 'logs' ? 'active' : ''}" href="/manage/${guild.id}/logs"><span class="nav-icon">≡</span><span>السجلات</span></a>
+    ` : `<div class="empty-nav">اختر سيرفراً من القائمة للبدء</div>`;
 
     return `<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> Abood System  | Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Changa:wght@400;500;700;800&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        :root {
-            --blue: #1e90ff;
-            --blue-dark: #0a6ecc;
-            --blue-glow: rgba(30,144,255,0.15);
-            --gold: #ffb703;
-            --gold-glow: rgba(255,183,3,0.15);
-            --red: #e63946;
-            --red-light: #ff6b6b;
-            --red-glow: rgba(230,57,70,0.12);
-            --black: #050508;
-            --dark: #0a0a14;
-            --darker: #07070f;
-            --card: rgba(12,12,24,0.75);
-            --card-hover: rgba(18,18,34,0.9);
-            --border: rgba(30,144,255,0.18);
-            --border-red: rgba(230,57,70,0.18);
-            --text: #e8eaf6;
-            --text-muted: rgba(255,255,255,0.45);
-            --sidebar-w: 280px;
-        }
-
-        body {
-            font-family: 'Changa', sans-serif;
-            background: var(--black);
-            color: var(--text);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: row-reverse;
-            direction: rtl;
-            animation: pageFadeIn 0.5s ease both;
-        }
-        @keyframes pageFadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-        /* ===== BACKGROUND ===== */
-        body::before {
-            content: '';
-            position: fixed; inset: 0; z-index: -3;
-            background:
-                radial-gradient(ellipse at 10% 20%, rgba(30,144,255,0.09) 0%, transparent 50%),
-                radial-gradient(ellipse at 90% 80%, rgba(230,57,70,0.06) 0%, transparent 50%),
-                radial-gradient(ellipse at 60% 10%, rgba(255,183,3,0.05) 0%, transparent 45%),
-                radial-gradient(ellipse at 50% 50%, rgba(10,10,30,1) 0%, rgba(5,5,8,1) 100%);
-        }
-        body::after {
-            content: '';
-            position: fixed; inset: 0; z-index: -2;
-            background-image:
-                linear-gradient(rgba(30,144,255,0.025) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(30,144,255,0.025) 1px, transparent 1px);
-            background-size: 60px 60px;
-        }
-        .orb {
-            position: fixed; z-index: -1; border-radius: 50%;
-            filter: blur(60px); opacity: 0.35; pointer-events: none;
-            animation: floatOrb 14s ease-in-out infinite;
-        }
-        .orb-1 { width: 320px; height: 320px; background: var(--blue); top: -80px; right: -60px; animation-delay: 0s; }
-        .orb-2 { width: 260px; height: 260px; background: var(--red); bottom: -60px; left: -40px; animation-delay: 3s; }
-        .orb-3 { width: 200px; height: 200px; background: var(--gold); top: 40%; left: 30%; animation-delay: 6s; opacity: 0.15; }
-        @keyframes floatOrb {
-            0%, 100% { transform: translate(0,0) scale(1); }
-            50% { transform: translate(30px,-30px) scale(1.12); }
-        }
-
-        /* ===== SIDEBAR ===== */
-        .sidebar {
-            width: var(--sidebar-w);
-            background: rgba(7,7,15,0.95);
-            border-left: 1px solid var(--border);
-            position: relative;
-            display: flex; flex-direction: column;
-            z-index: 100;
-            backdrop-filter: blur(20px);
-            overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: var(--blue) transparent;
-            flex-shrink: 0;
-            height: 100vh;
-        }
-        .sidebar::-webkit-scrollbar { width: 4px; }
-        .sidebar::-webkit-scrollbar-thumb { background: var(--blue); border-radius: 10px; }
-
-        .sidebar-header {
-            padding: 30px 20px 20px;
-            border-bottom: 1px solid var(--border);
-            text-align: center;
-            flex-shrink: 0;
-        }
-        .sidebar-logo {
-            font-size: 27px; font-weight: 800; letter-spacing: 3px;
-            background: linear-gradient(135deg, var(--blue), #ffffff 50%, var(--red));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            display: block;
-            animation: logoShimmer 4s ease-in-out infinite alternate;
-        }
-        @keyframes logoShimmer {
-            from { filter: drop-shadow(0 0 8px rgba(30,144,255,0.4)); }
-            to   { filter: drop-shadow(0 0 20px rgba(30,144,255,0.8)); }
-        }
-        .sidebar-tagline {
-            font-size: 10px; letter-spacing: 3px; color: var(--text-muted);
-            margin-top: 4px; text-transform: uppercase;
-        }
-
-        .nav {
-            display: ${showNav};
-            flex-direction: column;
-            gap: 4px;
-            padding: 20px 12px 30px;
-            flex: 1;
-        }
-        .nav a {
-            display: flex; align-items: center; gap: 12px;
-            padding: 12px 16px; border-radius: 12px;
-            color: var(--text-muted); text-decoration: none;
-            font-size: 14px; font-weight: 500;
-            transition: all 0.25s cubic-bezier(.2,.9,.3,1.2);
-            border: 1px solid transparent;
-            position: relative; overflow: hidden;
-        }
-        .nav a svg { flex-shrink: 0; opacity: 0.6; transition: opacity 0.25s; }
-        .nav a:hover {
-            background: var(--blue-glow);
-            color: white;
-            border-color: var(--border);
-            transform: translateX(-4px);
-        }
-        .nav a:hover svg { opacity: 1; }
-        .nav a.active {
-            background: linear-gradient(135deg, rgba(30,144,255,0.22), rgba(30,144,255,0.08));
-            color: var(--blue);
-            border-color: rgba(30,144,255,0.4);
-            font-weight: 700;
-            box-shadow: 0 0 18px rgba(30,144,255,0.18) inset;
-        }
-        .nav a.active svg { opacity: 1; color: var(--blue); }
-        .nav a.active::before {
-            content: '';
-            position: absolute; right: 0; top: 20%; bottom: 20%;
-            width: 3px; background: linear-gradient(var(--blue), var(--gold));
-            border-radius: 3px 0 0 3px;
-            animation: pulseBar 1.6s ease-in-out infinite;
-        }
-        @keyframes pulseBar { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-        /* ===== MAIN CONTENT ===== */
-        .main {
-            margin-right: 0;
-            padding: 40px 50px;
-            flex: 1;
-            min-height: 100vh;
-            overflow-y: auto;
-        }
-
-        .page-header {
-            display: flex; align-items: center; gap: 15px;
-            margin-bottom: 35px; padding-bottom: 20px;
-            border-bottom: 1px solid var(--border);
-        }
-        .page-header h1 {
-            font-size: 24px; font-weight: 700; color: white;
-        }
-        .page-header .badge {
-            background: var(--blue-glow); border: 1px solid var(--border);
-            color: var(--blue); padding: 4px 12px; border-radius: 20px; font-size: 12px;
-        }
-
-        /* ===== CARDS ===== */
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 28px;
-            margin-bottom: 24px;
-            backdrop-filter: blur(15px);
-            transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
-            position: relative;
-            overflow: hidden;
-        }
-        .card::before {
-            content: '';
-            position: absolute; top: 0; left: 0; right: 0; height: 1px;
-            background: linear-gradient(90deg, transparent, var(--blue), var(--gold), transparent);
-            opacity: 0.5;
-        }
-        .card:hover {
-            border-color: rgba(30,144,255,0.4);
-            transform: translateY(-3px);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.35), 0 0 30px rgba(30,144,255,0.08);
-        }
-        .card h3 {
-            color: white; font-size: 17px; font-weight: 700;
-            margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
-        }
-        .card h3 svg { color: var(--blue); }
-
-        /* ===== FORMS ===== */
-        label {
-            display: block; color: var(--text-muted); font-size: 13px;
-            margin-bottom: 6px; margin-top: 16px; font-weight: 500;
-        }
-        input, select, textarea {
-            width: 100%; padding: 12px 16px;
-            background: rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 10px; color: white;
-            font-family: 'Changa', sans-serif; font-size: 14px;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            outline: none;
-        }
-        input:focus, select:focus, textarea:focus {
-            border-color: var(--blue);
-            box-shadow: 0 0 0 3px rgba(30,144,255,0.12);
-        }
-        select option { background: #0d0d1a; color: white; }
-        textarea { resize: vertical; min-height: 100px; }
-
-        /* ===== BUTTONS ===== */
-        .btn-save {
-            background: linear-gradient(135deg, var(--blue), var(--blue-dark));
-            color: white; border: none; padding: 13px 24px;
-            border-radius: 12px; cursor: pointer; font-weight: 700;
-            font-size: 14px; font-family: 'Changa', sans-serif;
-            transition: all 0.3s; display: inline-block; text-decoration: none;
-            text-align: center; width: 100%;
-            box-shadow: 0 4px 20px rgba(30,144,255,0.25);
-            position: relative; overflow: hidden;
-        }
-        .btn-save::after {
-            content: ''; position: absolute; top: 0; left: -60%;
-            width: 40%; height: 100%;
-            background: linear-gradient(120deg, transparent, rgba(255,255,255,0.35), transparent);
-            transform: skewX(-20deg);
-            transition: left 0.6s ease;
-        }
-        .btn-save:hover::after { left: 130%; }
-        .btn-save:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(30,144,255,0.4);
-            filter: brightness(1.1);
-        }
-        .btn-danger {
-            background: linear-gradient(135deg, var(--red), #c0392b);
-            box-shadow: 0 4px 20px rgba(230,57,70,0.25);
-        }
-        .btn-danger:hover { box-shadow: 0 8px 30px rgba(230,57,70,0.4); }
-        .btn-sm { padding: 8px 16px; font-size: 13px; width: auto; border-radius: 8px; }
-        .btn-green {
-            background: linear-gradient(135deg, #00c853, #00a040);
-            box-shadow: 0 4px 20px rgba(0,200,83,0.25);
-        }
-
-        /* ===== STAT BOXES ===== */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 16px; margin-top: 16px;
-        }
-        .stat-box {
-            background: rgba(0,0,0,0.3);
-            border: 1px solid var(--border);
-            border-radius: 14px; padding: 20px;
-            text-align: center; transition: all 0.3s;
-        }
-        .stat-box:hover { border-color: var(--blue); transform: translateY(-3px); }
-        .stat-box .stat-num { font-size: 36px; font-weight: 800; color: var(--blue); }
-        .stat-box .stat-label { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
-
-        /* ===== GUILD GRID (Dashboard) ===== */
-        .guild-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px; max-width: 1000px; margin: 0 auto;
-        }
-        .guild-card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 18px; padding: 28px 20px;
-            text-align: center; transition: all 0.35s;
-            cursor: pointer;
-        }
-        .guild-card:hover {
-            transform: translateY(-8px);
-            border-color: var(--blue);
-            box-shadow: 0 20px 50px rgba(30,144,255,0.15);
-        }
-        .guild-icon {
-            width: 75px; height: 75px; border-radius: 50%;
-            border: 2px solid var(--border); margin-bottom: 14px;
-            transition: border-color 0.3s;
-        }
-        .guild-card:hover .guild-icon { border-color: var(--blue); }
-        .guild-card h3 { color: white; font-size: 15px; margin-bottom: 12px; }
-        .guild-card a { font-size: 13px; font-weight: 600; text-decoration: none; }
-
-        /* ===== TABLE ===== */
-        .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th {
-            padding: 12px 16px; text-align: right;
-            color: var(--text-muted); font-size: 12px; font-weight: 600;
-            border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 1px;
-        }
-        .data-table td {
-            padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.04);
-            font-size: 14px; color: var(--text);
-        }
-        .data-table tr:hover td { background: rgba(30,144,255,0.04); }
-
-        /* ===== BADGE ===== */
-        .tag {
-            display: inline-block; padding: 3px 10px; border-radius: 20px;
-            font-size: 11px; font-weight: 600;
-        }
-        .tag-blue { background: var(--blue-glow); color: var(--blue); border: 1px solid var(--border); }
-        .tag-red { background: var(--red-glow); color: var(--red-light); border: 1px solid var(--border-red); }
-        .tag-green { background: rgba(0,200,83,0.1); color: #00c853; border: 1px solid rgba(0,200,83,0.2); }
-
-        /* ===== DIVIDER ===== */
-        .section-divider {
-            height: 1px; background: var(--border);
-            margin: 24px 0;
-        }
-
-        /* ===== TOGGLE SWITCH ===== */
-        .toggle-row {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
-        }
-        .toggle-row label { margin: 0; color: var(--text); font-size: 14px; }
-
-        /* ===== ANIMATIONS ===== */
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-        .card { animation: fadeInUp 0.4s ease both; }
-        .card:nth-child(2) { animation-delay: 0.05s; }
-        .card:nth-child(3) { animation-delay: 0.1s; }
-        .card:nth-child(4) { animation-delay: 0.15s; }
-
-        /* ===== SCROLLBAR ===== */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(30,144,255,0.3); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--blue); }
-
-        /* ===== RESPONSIVE ===== */
-        @media (max-width: 768px) {
-            .sidebar { width: 240px; }
-            .main { margin-right: 240px; padding: 20px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <span class="sidebar-logo">Abood System 
- <span style="-webkit-text-fill-color:var(--gold); background:none;">SYSTEM</span></span>
-            <div class="sidebar-tagline">Bot Dashboard</div>
-        </div>
-        <nav class="nav">
-            ${navItems}
-        </nav>
-    </div>
-    <div class="main">
-        <div class="page-header">
-            <h1>${guildName}</h1>
-            ${guild.id ? `<span class="badge">مدير</span>` : ''}
-        </div>
-        ${content}
-    </div>
-</body>
-</html>`;
+<html dir="rtl" lang="ar"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Abood System | ${guildName}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"><style>
+:root{--bg:#06101d;--sidebar:#081827e8;--panel:#0b1d2dcc;--panel2:#10283bd9;--line:rgba(154,224,255,.15);--cyan:#6de7ff;--violet:#a78bfa;--mint:#7cf7c6;--text:#ecf8ff;--muted:#8ca6bb;--sidebar-w:278px}*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text)}body{direction:rtl;display:flex;animation:appear .5s ease;background:radial-gradient(circle at 15% 10%,rgba(109,231,255,.13),transparent 30%),radial-gradient(circle at 90% 90%,rgba(167,139,250,.1),transparent 30%),#06101d}body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.6;background-image:linear-gradient(rgba(109,231,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(109,231,255,.025) 1px,transparent 1px);background-size:56px 56px;mask-image:linear-gradient(to bottom,black,transparent 90%)}a{color:inherit}.sidebar{width:var(--sidebar-w);height:100vh;position:sticky;top:0;flex-shrink:0;padding:22px 14px;background:var(--sidebar);border-left:1px solid var(--line);backdrop-filter:blur(24px);overflow:auto;z-index:3}.brand-mini{padding:8px 12px 22px;border-bottom:1px solid var(--line);margin-bottom:14px}.brand-mini strong{display:block;font-size:22px;font-weight:900;background:linear-gradient(110deg,#fff,var(--cyan),var(--violet));-webkit-background-clip:text;color:transparent}.brand-mini small{color:var(--muted);font-size:10px;letter-spacing:2px}.server-chip{display:flex;align-items:center;gap:10px;padding:11px;border:1px solid var(--line);background:rgba(255,255,255,.04);border-radius:15px;margin-bottom:17px}.server-chip .server-dot{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--cyan),var(--violet));color:#07111f;font-weight:900}.server-chip div{min-width:0}.server-chip b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}.server-chip small{color:var(--mint);font-size:10px}.nav{display:flex;flex-direction:column;gap:4px}.nav-label{color:#5e7a91;font-size:10px;font-weight:800;margin:16px 12px 5px;letter-spacing:1px}.nav a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--muted);font-size:13px;padding:10px 12px;border-radius:12px;border:1px solid transparent;transition:.22s}.nav a:hover{color:#fff;background:rgba(109,231,255,.07);border-color:var(--line);transform:translateX(-3px)}.nav a.active{color:var(--cyan);background:linear-gradient(90deg,rgba(109,231,255,.15),rgba(109,231,255,.04));border-color:rgba(109,231,255,.26);box-shadow:inset -3px 0 var(--cyan)}.nav-icon{width:27px;height:27px;display:grid;place-items:center;border-radius:9px;background:rgba(255,255,255,.05);color:var(--cyan);font-size:16px;font-weight:800}.empty-nav{color:var(--muted);font-size:12px;padding:20px 12px}.main{min-width:0;flex:1;padding:30px clamp(20px,4vw,58px) 60px;overflow:hidden}.topbar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:32px;padding-bottom:18px;border-bottom:1px solid var(--line)}.crumb{color:var(--muted);font-size:12px}.crumb strong{color:#fff;font-size:19px;display:block;margin-top:3px}.top-actions{display:flex;gap:9px}.top-actions a{display:inline-flex;align-items:center;gap:7px;text-decoration:none;font-size:12px;color:var(--muted);padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.035);transition:.2s}.top-actions a:hover{color:#fff;border-color:var(--cyan)}.page-header{display:none}.card{position:relative;background:linear-gradient(145deg,rgba(16,40,59,.82),rgba(7,22,36,.78));border:1px solid var(--line);border-radius:19px;padding:25px;margin-bottom:20px;box-shadow:0 15px 45px rgba(0,0,0,.14);transition:.25s;animation:rise .45s ease both;overflow:hidden}.card:before{content:"";position:absolute;right:0;top:0;width:100px;height:2px;background:linear-gradient(90deg,transparent,var(--cyan));opacity:.7}.card:hover{border-color:rgba(109,231,255,.3);transform:translateY(-2px)}.card h2,.card h3,.card h4{color:#fff}.card h3{display:flex;align-items:center;gap:9px;margin:0 0 19px;font-size:16px}.card h3 svg{color:var(--cyan)}label{display:block;color:var(--muted);font-size:12px;margin:13px 0 6px}input,select,textarea{width:100%;padding:12px 14px;background:rgba(1,10,18,.48);border:1px solid rgba(255,255,255,.1);border-radius:11px;color:#fff;font-family:'Cairo',sans-serif;font-size:13px;outline:0;transition:.2s}input:focus,select:focus,textarea:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(109,231,255,.1)}select option{background:#0b1d2c;color:#fff}textarea{resize:vertical;min-height:100px}.btn-save{display:inline-block;width:100%;padding:13px 20px;border:0;border-radius:12px;color:#06101d;background:linear-gradient(110deg,var(--cyan),var(--mint));font:800 13px 'Cairo',sans-serif;cursor:pointer;text-align:center;text-decoration:none;transition:.22s;box-shadow:0 9px 24px rgba(109,231,255,.15)}.btn-save:hover{transform:translateY(-2px);filter:brightness(1.08)}.btn-danger{background:linear-gradient(110deg,#ff8a9a,#ffb18a)}.btn-green{background:linear-gradient(110deg,var(--mint),#b8ffdf)}.btn-sm{width:auto;padding:8px 14px;font-size:12px}.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin-top:14px}.stat-box{padding:19px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.035);transition:.22s}.stat-box:hover{transform:translateY(-3px);border-color:rgba(109,231,255,.35)}.stat-box .stat-num{font-size:31px;font-weight:900;color:var(--cyan)}.stat-box .stat-label{color:var(--muted);font-size:11px;margin-top:4px}.guild-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}.guild-card{position:relative;padding:22px;border:1px solid var(--line);border-radius:19px;background:linear-gradient(145deg,rgba(16,40,59,.9),rgba(7,22,36,.7));text-align:right;transition:.25s;animation:rise .45s ease both}.guild-card:hover{transform:translateY(-7px);border-color:var(--cyan);box-shadow:0 22px 45px rgba(0,0,0,.24)}.guild-card .guild-top{display:flex;align-items:center;gap:13px;margin-bottom:19px}.guild-icon{width:56px;height:56px;border-radius:17px;border:1px solid var(--line);object-fit:cover}.guild-card h3{margin:0;color:#fff;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.guild-card .members{color:var(--muted);font-size:11px;margin:3px 0 0}.guild-card a{display:block;text-align:center;padding:9px;border-radius:10px;text-decoration:none;color:#06101d;background:linear-gradient(110deg,var(--cyan),var(--mint));font-size:12px;font-weight:900}.data-table{width:100%;border-collapse:collapse}.data-table th{text-align:right;color:var(--muted);font-size:11px;padding:11px;border-bottom:1px solid var(--line)}.data-table td{padding:13px 11px;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px}.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.05)}.toggle-row label{margin:0;color:var(--text)}.tag{display:inline-block;padding:3px 9px;border-radius:999px;font-size:10px}.tag-blue{color:var(--cyan);background:rgba(109,231,255,.1);border:1px solid rgba(109,231,255,.2)}.tag-red{color:#ff9aaa;background:rgba(255,111,137,.1);border:1px solid rgba(255,111,137,.2)}.tag-green{color:var(--mint);background:rgba(124,247,198,.1);border:1px solid rgba(124,247,198,.2)}.section-divider{height:1px;background:var(--line);margin:22px 0}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(109,231,255,.25);border-radius:99px}@keyframes appear{from{opacity:0}to{opacity:1}}@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}@media(max-width:900px){.sidebar{width:225px}.main{padding:22px 18px 45px}}@media(max-width:650px){body{display:block}.sidebar{position:relative;width:100%;height:auto;max-height:190px;border-left:0;border-bottom:1px solid var(--line)}.brand-mini{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 13px}.server-chip{margin-bottom:8px}.nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.nav-label{grid-column:1/-1;margin:7px 5px 0}.nav a{font-size:11px}.main{padding-top:20px}.topbar{margin-bottom:22px}}
+</style></head><body><aside class="sidebar"><div class="brand-mini"><div><strong>Abood System</strong><small>CONTROL CENTER</small></div></div>${guild.id ? `<div class="server-chip"><span class="server-dot">◎</span><div><b>${guildName}</b><small>متصل الآن</small></div></div>` : ''}<nav class="nav">${navItems}</nav></aside><main class="main"><header class="topbar"><div class="crumb">لوحة التحكم <strong>${guildName}</strong></div><div class="top-actions"><a href="/dashboard">⌘ السيرفرات</a><a href="/logout">خروج ↗</a></div></header>${content}</main></body></html>`;
 }
-
-
 
 // ==========================================
 // 9. Dashboard Routes
@@ -1283,45 +745,25 @@ app.get('/dashboard', checkAuth, (req, res) => {
     // عرض جميع السيرفرات التي البوت موجود فيها حاليًا
     const botGuilds = [...client.guilds.cache.values()].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 
-    const cards = botGuilds.map(g => {
+    const cards = botGuilds.map((g, index) => {
         const iconURL = g.iconURL({ extension: 'png', size: 256 }) || 'https://cdn.discordapp.com/embed/avatars/0.png';
         return `
-        <div class="guild-card">
-            <img src="${iconURL}" class="guild-icon" alt="${g.name}">
-            <h3>${g.name}</h3>
-            <p style="color:var(--text-muted); font-size:12px; margin-bottom:10px;">${g.memberCount || 0} عضو</p>
-            <a href="/manage/${g.id}/home" style="color:var(--blue);">الإعدادات</a>
-        </div>`;
+        <article class="guild-card" data-name="${g.name.toLowerCase()}">
+            <div class="guild-top"><img src="${iconURL}" class="guild-icon" alt="${g.name}"><div><h3>${g.name}</h3><p class="members">${g.memberCount || 0} عضو · سيرفر #${index + 1}</p></div></div>
+            <a href="/manage/${g.id}/home">فتح مركز التحكم <span>←</span></a>
+        </article>`;
     }).join('');
 
     const content = `
-    <div style="text-align:center; margin-bottom:40px;">
-        <div style="font-size:48px; font-weight:800; letter-spacing:6px;
-            background: linear-gradient(135deg, var(--blue), #fff, var(--red));
-            -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-            margin-bottom:10px;">Abood System </div>
-        <p style="color:var(--text-muted); font-size:15px;">اختر السيرفر لإدارته</p>
-        <div style="margin-top:20px; max-width:400px; margin-left:auto; margin-right:auto;">
-            <input type="text" id="guildSearch" placeholder="ابحث عن سيرفر..." onkeyup="filterGuilds()" style="text-align:center; border-radius:20px; background:rgba(30,144,255,0.05); border:1px solid var(--border);">
+    <section class="card" style="margin-bottom:22px;padding:30px;background:linear-gradient(110deg,rgba(109,231,255,.12),rgba(167,139,250,.08));">
+        <div style="display:flex;align-items:end;justify-content:space-between;gap:20px;flex-wrap:wrap;">
+            <div><span class="tag tag-blue">SERVER SELECTOR</span><h2 style="font-size:26px;margin:12px 0 4px;">اختر مساحة العمل</h2><p style="color:var(--muted);font-size:13px;margin:0;">حدد السيرفر الذي تريد إدارته وابدأ التحكم بكل أدوات البوت.</p></div>
+            <div style="min-width:260px;flex:1;max-width:390px;"><input type="search" id="guildSearch" placeholder="ابحث باسم السيرفر..." oninput="filterGuilds()" style="margin:0;"></div>
         </div>
-    </div>
+    </section>
     <div class="guild-grid" id="guildGrid">${cards}</div>
     <script>
-        function filterGuilds() {
-            const input = document.getElementById('guildSearch');
-            const filter = input.value.toLowerCase();
-            const grid = document.getElementById('guildGrid');
-            const cards = grid.getElementsByClassName('guild-card');
-            for (let i = 0; i < cards.length; i++) {
-                const h3 = cards[i].getElementsByTagName('h3')[0];
-                const txtValue = h3.textContent || h3.innerText;
-                if (txtValue.toLowerCase().indexOf(filter) > -1) {
-                    cards[i].style.display = "";
-                } else {
-                    cards[i].style.display = "none";
-                }
-            }
-        }
+        function filterGuilds() { const filter = document.getElementById('guildSearch').value.trim().toLowerCase(); document.querySelectorAll('.guild-card').forEach(card => { card.style.display = card.dataset.name.includes(filter) ? '' : 'none'; }); }
     </script>`;
 
     res.send(ui({ id: null, name: 'قائمة السيرفرات' }, 'home', content));
