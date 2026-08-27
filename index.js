@@ -136,10 +136,6 @@ const GuildConfig = mongoose.model('GuildConfig', new mongoose.Schema({
         channel: String,
         embedMessage: { type: String, default: "مرحباً بك {member} في سيرفر {guild}!" },
         imagePath: String,
-        avatarX: { type: Number, default: 50 },
-        avatarY: { type: Number, default: 50 },
-        avatarWidth: { type: Number, default: 150 },
-        avatarHeight: { type: Number, default: 150 },
         aiPrompt: { type: String, default: "Anime style landscape, forest, sun light, high quality" },
         bannerURL: String
     },
@@ -260,7 +256,11 @@ const client = new Client({
 
 const commands = [
     new SlashCommandBuilder().setName('setbanner').setDescription('رفع صورة الخط').addAttachmentOption(o => o.setName('image').setDescription('صورة البنر').setRequired(true)),
-    new SlashCommandBuilder().setName('rename_panel').setDescription('لوحة تغيير الاسم').addStringOption(o => o.setName('name').setRequired(true).setDescription('الاسم')).addAttachmentOption(o => o.setName('image').setDescription('صورة اختيارية'))
+    new SlashCommandBuilder().setName('rename_panel').setDescription('لوحة تغيير الاسم').addStringOption(o => o.setName('name').setRequired(true).setDescription('الاسم')).addAttachmentOption(o => o.setName('image').setDescription('صورة اختيارية')),
+    new SlashCommandBuilder().setName('embed').setDescription('إرسال إيمباد إلى روم محدد')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+        .addChannelOption(o => o.setName('channel').setDescription('الروم الذي سيتم الإرسال إليه').setRequired(true).addChannelTypes(ChannelType.GuildText))
+        .addStringOption(o => o.setName('text').setDescription('الكتابة داخل الإيمباد').setRequired(true))
 ].map(c => c.toJSON());
 
 // ==========================================
@@ -1051,16 +1051,10 @@ app.get('/manage/:guildId/welcome', checkAuth, async (req, res) => {
     <form method="POST" action="/save/${g.id}/welcome" class="welcome-editor">
         <div class="editor-grid">
             <div class="card designer-card">
-                <div class="editor-heading"><div><div class="eyebrow">WELCOME BUILDER</div><h2>صمّم بطاقة الترحيب</h2><p>حرّك الصورة أو استخدم أدوات التحكم الدقيقة. التغيير يظهر مباشرة داخل المعاينة.</p></div><span class="editor-badge">LIVE PREVIEW</span></div>
+                <div class="editor-heading"><div><div class="eyebrow">WELCOME BUILDER</div><h2>صمّم بطاقة الترحيب</h2><p>تظهر صورة العضو تلقائياً داخل الإيمباد كصورة مصغّرة.</p></div><span class="editor-badge">LIVE PREVIEW</span></div>
                 <div class="welcome-preview" id="previewContainer">
                     <img src="${img}" id="bgPreview" alt="خلفية المعاينة">
                     <div class="preview-shade"></div><div class="preview-copy"><span>WELCOME</span><strong>{member}</strong><small>إلى ${g.name}</small></div>
-                    <div id="previewAvatar" class="preview-avatar" style="width:${s.welcome?.avatarWidth || 150}px;height:${s.welcome?.avatarHeight || 150}px;left:calc(${s.welcome?.avatarX || 50}% - ${(s.welcome?.avatarWidth || 150)/2}px);top:calc(${s.welcome?.avatarY || 50}% - ${(s.welcome?.avatarHeight || 150)/2}px);background-image:url('${client.user?.displayAvatarURL() || ''}')"><button type="button" id="avatarHandle" aria-label="تحريك الصورة">✥</button></div>
-                </div>
-                <div class="range-controls">
-                    <label>حجم الصورة <output id="sizeOutput">${s.welcome?.avatarWidth || 150}px</output><input id="sizeSlider" type="range" min="70" max="320" value="${s.welcome?.avatarWidth || 150}"></label>
-                    <label>الموضع الأفقي <output id="xOutput">${s.welcome?.avatarX || 50}%</output><input id="xSlider" type="range" min="0" max="100" value="${s.welcome?.avatarX || 50}"></label>
-                    <label>الموضع العمودي <output id="yOutput">${s.welcome?.avatarY || 50}%</output><input id="ySlider" type="range" min="0" max="100" value="${s.welcome?.avatarY || 50}"></label>
                 </div>
             </div>
             <div class="card settings-card">
@@ -1071,28 +1065,13 @@ app.get('/manage/:guildId/welcome', checkAuth, async (req, res) => {
                 <label>رابط خلفية البطاقة</label><input type="url" name="imageUrl" value="${s.welcome?.imagePath || ''}" placeholder="https://example.com/image.png" style="direction:ltr;text-align:left">
                 <div class="upload-note">ضع رابط صورة مباشر ثم اضغط حفظ.</div>
                 <div class="upload-note">يجب أن يكون الرابط عامًا ومباشرًا ويبدأ بـ https://</div>
-                <input type="hidden" name="avatarX" id="avatarX" value="${s.welcome?.avatarX || 50}"><input type="hidden" name="avatarY" id="avatarY" value="${s.welcome?.avatarY || 50}"><input type="hidden" name="avatarWidth" id="avatarWidth" value="${s.welcome?.avatarWidth || 150}"><input type="hidden" name="avatarHeight" id="avatarHeight" value="${s.welcome?.avatarHeight || 150}">
                 <button class="btn-save" type="submit" style="width:100%;margin-top:20px">حفظ بطاقة الترحيب</button>
             </div>
         </div>
     </form>
     <style>
       .editor-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(290px,.8fr);gap:20px}.designer-card{padding:25px}.editor-heading{display:flex;justify-content:space-between;gap:15px;margin-bottom:20px}.editor-heading h2{margin:6px 0 4px;font-size:21px}.editor-heading p{color:var(--muted);font-size:11px;margin:0}.editor-badge{height:max-content;padding:5px 9px;border-radius:20px;border:1px solid var(--line);color:var(--gold);font:600 9px 'IBM Plex Mono',monospace}.welcome-preview{position:relative;isolation:isolate;width:100%;aspect-ratio:2/1;overflow:hidden;border-radius:15px;background:#090806;border:1px solid var(--line);touch-action:none}.welcome-preview #bgPreview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.preview-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.68),rgba(0,0,0,.08))}.preview-copy{position:absolute;right:7%;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;color:#fff}.preview-copy span{font:600 10px 'IBM Plex Mono',monospace;letter-spacing:3px;color:var(--gold)}.preview-copy strong{font-size:32px;line-height:1.25}.preview-copy small{font-size:11px;color:#d2cabb}.preview-avatar{position:absolute;border:3px solid var(--gold);border-radius:50%;background-size:cover;background-position:center;cursor:grab;box-shadow:0 0 0 5px rgba(244,194,76,.14),0 10px 28px rgba(0,0,0,.4);touch-action:none;z-index:2}.preview-avatar:active{cursor:grabbing}.preview-avatar button{position:absolute;right:-9px;bottom:-9px;width:25px;height:25px;border:2px solid var(--gold);border-radius:50%;background:#171006;color:var(--gold);cursor:grab}.range-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}.range-controls label{margin:0;color:#b6ad9d;font-size:11px}.range-controls output{float:left;color:var(--gold);font:600 10px 'IBM Plex Mono',monospace}.range-controls input{padding:0;height:20px;margin-top:9px;background:transparent;border:0;box-shadow:none;accent-color:var(--gold)}.settings-card .card-title{display:flex;align-items:center;gap:9px}.settings-card .card-title h3{margin:0}.title-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:9px;background:rgba(244,194,76,.12);color:var(--gold)}.upload-note{color:var(--muted);font-size:10px;margin-top:7px}@media(max-width:850px){.editor-grid{grid-template-columns:1fr}.range-controls{grid-template-columns:1fr 1fr}.preview-copy strong{font-size:26px}}@media(max-width:500px){.range-controls{grid-template-columns:1fr}.editor-heading{display:block}.editor-badge{display:inline-block;margin-top:12px}}
-    </style>
-    <script>
-    (() => {
-      const box=document.getElementById('previewContainer'), avatar=document.getElementById('previewAvatar'), handle=document.getElementById('avatarHandle');
-      const x=document.getElementById('xSlider'), y=document.getElementById('ySlider'), size=document.getElementById('sizeSlider'); const hx=document.getElementById('avatarX'), hy=document.getElementById('avatarY'), hw=document.getElementById('avatarWidth'), hh=document.getElementById('avatarHeight');
-      const xo=document.getElementById('xOutput'), yo=document.getElementById('yOutput'), so=document.getElementById('sizeOutput');
-      const paint=()=>{const w=Number(size.value); avatar.style.width=w+'px';avatar.style.height=w+'px';avatar.style.left='calc('+x.value+'% - '+(w/2)+'px)';avatar.style.top='calc('+y.value+'% - '+(w/2)+'px)';hx.value=x.value;hy.value=y.value;hw.value=w;hh.value=w;xo.value=x.value+'%';yo.value=y.value+'%';so.value=w+'px'};
-      [x,y,size].forEach(el=>el.addEventListener('input',paint));
-      let drag=null;
-      const point=e=>e.touches?e.touches[0]:e;
-      const down=e=>{if(e.target===handle)e.preventDefault(); const p=point(e), r=box.getBoundingClientRect(); drag={ox:p.clientX-r.left,oy:p.clientY-r.top,x:Number(x.value),y:Number(y.value)}; avatar.setPointerCapture?.(e.pointerId);};
-      const move=e=>{if(!drag)return; const p=point(e), r=box.getBoundingClientRect(); x.value=Math.max(0,Math.min(100,drag.x+(p.clientX-(r.left+drag.ox))/r.width*100)); y.value=Math.max(0,Math.min(100,drag.y+(p.clientY-(r.top+drag.oy))/r.height*100)); paint()};
-      const up=()=>drag=null; avatar.addEventListener('pointerdown',down); avatar.addEventListener('pointermove',move); avatar.addEventListener('pointerup',up); avatar.addEventListener('pointercancel',up); paint();
-    })();
-    </script>`;
+    </style>`;
     res.send(ui(g, 'welcome', content));
 });
 
@@ -1116,19 +1095,10 @@ app.post('/generate/:guildId/welcome-random', checkAuth, checkGuildAccess, async
 
 app.post('/save/:guildId/welcome', checkAuth, async (req, res) => {
     const b = req.body;
-    const safeNumber = (value, fallback) => {
-        const number = Number(value);
-        return Number.isFinite(number) ? number : fallback;
-    };
-
-    let updateData = {
+    const updateData = {
         'welcome.enabled': b.enabled === 'on',
         'welcome.channel': b.channel || '',
-        'welcome.embedMessage': b.embedMessage || 'مرحباً بك {member} في سيرفر {guild}!',
-        'welcome.avatarX': safeNumber(b.avatarX, 50),
-        'welcome.avatarY': safeNumber(b.avatarY, 50),
-        'welcome.avatarWidth': safeNumber(b.avatarWidth, 150),
-        'welcome.avatarHeight': safeNumber(b.avatarHeight, 150)
+        'welcome.embedMessage': b.embedMessage || 'مرحباً بك {member} في سيرفر {guild}!'
     };
     if (b.imageUrl?.trim()) updateData['welcome.imagePath'] = b.imageUrl.trim();
     await GuildConfig.findOneAndUpdate({ guildId: req.params.guildId }, { $set: updateData }, { upsert: true });
@@ -2365,6 +2335,7 @@ client.on('guildMemberAdd', async (member) => {
         const welcomeEmbed = new EmbedBuilder()
             .setTitle('عضو جديد انضم إلينا')
             .setDescription(welcomeMsg)
+            .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
             .setColor(0xd4af37)
             .setTimestamp()
             .setFooter({ text: `ABOUD SYSTEM  - العضو رقم ${member.guild.memberCount}`, iconURL: member.guild.iconURL() });
@@ -2379,26 +2350,6 @@ if (!bgUrl.startsWith('http' )) bgUrl = `${process.env.BASE_URL || 'http://local
 const background = await loadImage(bgUrl ).catch(() => loadImage('https://placehold.co/800x400/050510/1e90ff?text=Welcome' ));
 
             ctx.drawImage(background, 0, 0, 800, 400);
-
-            const avW = parseFloat(config.welcome.avatarWidth) || 150;
-            const avH = parseFloat(config.welcome.avatarHeight) || 150;
-            const x = (parseFloat(config.welcome.avatarX) || 50) / 100 * 800;
-            const y = (parseFloat(config.welcome.avatarY) || 50) / 100 * 400;
-
-            ctx.save();
-            ctx.beginPath();
-            ctx.ellipse(x, y, avW / 2, avH / 2, 0, 0, Math.PI * 2);
-            ctx.closePath();
-            ctx.clip();
-            const avatar = await loadImage(member.user.displayAvatarURL({ extension: 'png', size: 512 })).catch(() => null);
-            if (avatar) ctx.drawImage(avatar, x - (avW / 2), y - (avH / 2), avW, avH);
-            ctx.restore();
-
-            ctx.strokeStyle = '#d4af37';
-            ctx.lineWidth = 5;
-            ctx.beginPath();
-            ctx.ellipse(x, y, avW / 2, avH / 2, 0, 0, Math.PI * 2);
-            ctx.stroke();
 
             const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'welcome-image.png' });
             welcomeEmbed.setImage('attachment://welcome-image.png');
@@ -2747,6 +2698,25 @@ client.on('interactionCreate', async (interaction) => {
                     return interaction.reply({ content: 'تعذر إرسال الإعلان بهذا الروم.', ephemeral: true });
                 });
                 return interaction.reply({ content: `تم نشر الإعلان في ${channel}.`, ephemeral: true });
+            }
+
+            if (interaction.commandName === 'embed') {
+                const text = interaction.options.getString('text', true);
+                const channel = interaction.options.getChannel('channel', true);
+                const serverIcon = interaction.guild.iconURL({ extension: 'png', size: 512 });
+                const embed = new EmbedBuilder()
+                    .setDescription(text)
+                    .setColor(0xd4af37)
+                    .setTimestamp();
+                if (serverIcon) embed.setThumbnail(serverIcon);
+
+                try {
+                    await channel.send({ embeds: [embed] });
+                } catch (error) {
+                    console.error('[Embed Command Error]', error);
+                    return interaction.reply({ content: 'تعذر إرسال الإيمباد بهذا الروم.', ephemeral: true });
+                }
+                return interaction.reply({ content: `تم إرسال الإيمباد في ${channel}.`, ephemeral: true });
             }
 
             if (interaction.commandName === 'say') {
@@ -3404,6 +3374,12 @@ async function registerSlashCommands() {
             .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
             .addStringOption(opt => opt.setName('name').setDescription('الاسم الجديد').setRequired(true))
             .addAttachmentOption(opt => opt.setName('image').setDescription('صورة اللوحة').setRequired(false)),
+        new SlashCommandBuilder()
+            .setName('embed')
+            .setDescription('إرسال إيمباد إلى روم محدد')
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addChannelOption(opt => opt.setName('channel').setDescription('الروم الذي سيتم الإرسال إليه').setRequired(true).addChannelTypes(ChannelType.GuildText))
+            .addStringOption(opt => opt.setName('text').setDescription('الكتابة داخل الإيمباد').setRequired(true)),
 
         // ===== 20 أمر إشراف قوية =====
         new SlashCommandBuilder().setName('ban').setDescription('حظر عضو من السيرفر')
