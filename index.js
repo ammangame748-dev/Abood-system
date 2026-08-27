@@ -597,12 +597,7 @@ const checkAuth = (req, res, next) => {
 
 const checkGuildAccess = (req, res, next) => {
     const guildId = req.params.guildId;
-    const guild = req.user?.guilds?.find(g => g.id === guildId);
-    if (!guild) return res.status(403).send('ليس لديك صلاحية إدارة هذا السيرفر.');
-    try {
-        const permissions = BigInt(guild.permissions || 0);
-        if ((permissions & 8n) !== 8n && (permissions & 32n) !== 32n) return res.status(403).send('تحتاج إلى صلاحية إدارة السيرفر أو Administrator.');
-    } catch { return res.status(403).send('صلاحيات السيرفر غير صالحة.'); }
+    if (!client.guilds.cache.has(guildId)) return res.status(404).send('البوت غير موجود في هذا السيرفر.');
     next();
 };
 
@@ -761,21 +756,16 @@ app.post('/save/:guildId/admincmds', checkAuth, async (req, res) => {
 
 // --- [ Dashboard - Server List ] ---
 app.get('/dashboard', checkAuth, (req, res) => {
-    const adminGuilds = req.user.guilds.filter(g => {
-        const p = BigInt(g.permissions);
-        return (p & 8n) === 8n || (p & 32n) === 32n;
-    });
-    const inviteLink = `https://discord.com/oauth2/authorize?client_id=${process.env.CLIENT_ID}&permissions=8&scope=bot%20applications.commands`;
+    const adminGuilds = [...client.guilds.cache.values()];
 
     const cards = adminGuilds.map(g => {
-        const hasBot = client.guilds.cache.has(g.id);
-        const iconURL = g.icon
-            ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=256`
-            : 'https://cdn.discordapp.com/embed/avatars/0.png';
+        const hasBot = true;
+        const iconURL = g.iconURL({ extension: 'png', size: 256 })
+            || 'https://cdn.discordapp.com/embed/avatars/0.png';
         return `<article class="server-card guild-card">
             <div class="server-card-top"><img src="${iconURL}" class="guild-icon" alt="${g.name}"><span class="server-state ${hasBot ? 'is-ready' : 'is-pending'}"><i></i>${hasBot ? 'متصل' : 'بانتظار البوت'}</span></div>
             <div class="server-card-copy"><span class="server-label">SERVER WORKSPACE</span><h3>${g.name}</h3><p>${hasBot ? 'كل أنظمة Aboud System جاهزة للإدارة.' : 'أضف البوت لتفعيل مركز التحكم.'}</p></div>
-            ${hasBot ? `<a class="server-action primary" href="/manage/${g.id}/home"><span>فتح لوحة الإدارة</span><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>` : `<a class="server-action secondary" href="${inviteLink}"><span>إضافة Aboud System</span><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></a>`}
+            <a class="server-action primary" href="/manage/${g.id}/home"><span>فتح لوحة الإدارة</span><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
         </article>`;
     }).join('');
 
@@ -784,7 +774,7 @@ app.get('/dashboard', checkAuth, (req, res) => {
       .dashboard-hero{position:relative;overflow:hidden;display:grid;grid-template-columns:1.2fr .8fr;gap:25px;align-items:center;margin-bottom:25px;padding:30px;border:1px solid var(--line-strong);border-radius:24px;background:linear-gradient(120deg,rgba(128,116,255,.20),rgba(15,28,58,.84) 53%,rgba(116,232,255,.08))}.dashboard-hero:after{content:'AS';position:absolute;left:20px;bottom:-45px;color:rgba(116,232,255,.06);font:900 150px 'IBM Plex Mono',monospace;letter-spacing:-12px}.dashboard-hero-copy{position:relative;z-index:1}.dashboard-hero-copy .eyebrow{color:var(--cyan);font:600 9px 'IBM Plex Mono',monospace;letter-spacing:1.8px}.dashboard-hero-copy h2{margin:10px 0 6px;font-size:27px}.dashboard-hero-copy p{margin:0;max-width:580px;color:#a5b6d1;font-size:12px;line-height:1.9}.dashboard-actions{display:flex;justify-content:flex-end;gap:10px;position:relative;z-index:1}.hero-action{display:inline-flex;align-items:center;gap:8px;padding:12px 15px;border-radius:12px;text-decoration:none;font-size:11px;font-weight:800}.hero-action.primary{color:#071021;background:linear-gradient(120deg,var(--cyan),#9388ff)}.hero-action.ghost{color:#b8c8e5;border:1px solid var(--line);background:rgba(5,12,27,.35)}.hero-action svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}.server-toolbar{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:16px}.server-toolbar h2{margin:0;font-size:18px}.server-toolbar p{margin:4px 0 0;color:var(--muted);font-size:11px}.server-count{padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--cyan);background:rgba(116,232,255,.06);font:700 10px 'IBM Plex Mono',monospace}.server-search{position:relative;margin-bottom:16px}.server-search svg{position:absolute;right:14px;top:13px;width:17px;height:17px;color:#7183a3;fill:none;stroke:currentColor;stroke-width:1.7;pointer-events:none}.server-search input{padding-right:42px;border-radius:13px;background:rgba(5,12,27,.62)}.guild-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}.server-card{position:relative;overflow:hidden;padding:20px!important}.server-card:before{content:'';position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--indigo),var(--cyan));opacity:.75}.server-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px}.server-state{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;font:600 9px 'IBM Plex Mono',monospace}.server-state i{width:6px;height:6px;border-radius:50%}.server-state.is-ready{color:#8ef4cc;background:rgba(91,240,191,.08)}.server-state.is-ready i{background:var(--green);box-shadow:0 0 10px var(--green)}.server-state.is-pending{color:#ffb5c9;background:rgba(255,112,166,.08)}.server-state.is-pending i{background:var(--pink);box-shadow:0 0 10px var(--pink)}.server-card-copy{margin:19px 0}.server-label{color:#7487a9;font:600 9px 'IBM Plex Mono',monospace;letter-spacing:1.3px}.server-card h3{margin:7px 0 5px;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.server-card p{min-height:38px;margin:0;color:var(--muted);font-size:11px;line-height:1.8}.server-action{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:11px;text-decoration:none;font-size:11px;font-weight:800}.server-action.primary{color:#071021;background:linear-gradient(120deg,var(--cyan),#9388ff)}.server-action.secondary{color:#b9cae7;border:1px solid var(--line);background:rgba(116,232,255,.045)}.server-action svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}.empty-servers{padding:55px 20px;text-align:center;border:1px dashed var(--line-strong);border-radius:18px;color:var(--muted)}.empty-servers svg{width:35px;height:35px;color:var(--cyan);fill:none;stroke:currentColor;stroke-width:1.5;margin-bottom:10px}@media(max-width:720px){.dashboard-hero{grid-template-columns:1fr;padding:23px}.dashboard-actions{justify-content:flex-start;flex-wrap:wrap}.server-toolbar{align-items:flex-start}.server-count{margin-top:2px}}
     </style>
     <section class="dashboard-hero"><div class="dashboard-hero-copy"><div class="eyebrow">ABOUD SYSTEM / COMMAND CENTER</div><h2>كل سيرفراتك، تحت السيطرة.</h2><p>اختر مساحة العمل التي تريد إدارتها. من هنا تبدأ إدارة الحماية، الأعضاء، التذاكر والأنظمة المتقدمة.</p></div><div class="dashboard-actions"><a class="hero-action primary" href="#serverGrid"><svg viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></svg>استعراض السيرفرات</a><a class="hero-action ghost" href="/logout"><svg viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M21 4v16"/></svg>خروج</a></div></section>
-    <div class="server-toolbar"><div><h2>مساحات العمل</h2><p>${adminGuilds.length} سيرفر متاح للإدارة من حسابك.</p></div><span class="server-count">${adminGuilds.length} SERVERS</span></div>
+    <div class="server-toolbar"><div><h2>مساحات العمل</h2><p>${adminGuilds.length} سيرفر موجود فيها البوت.</p></div><span class="server-count">${adminGuilds.length} SERVERS</span></div>
     <div class="server-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input type="search" id="guildSearch" placeholder="ابحث باسم السيرفر..." autocomplete="off"></div>
     <div class="guild-grid" id="serverGrid">${cards || `<div class="empty-servers"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg><div>لا توجد سيرفرات متاحة حاليًا.</div></div>`}</div>
     <script>(function(){const input=document.getElementById('guildSearch'),grid=document.getElementById('serverGrid');if(!input||!grid)return;input.addEventListener('input',function(){const term=this.value.trim().toLowerCase();grid.querySelectorAll('.server-card').forEach(function(card){card.style.display=card.textContent.toLowerCase().includes(term)?'':'none';});});})();</script>`;
