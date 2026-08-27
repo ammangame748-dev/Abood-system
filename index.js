@@ -662,6 +662,8 @@ function ui(guild, active, content) {
         ['welcome', 'الترحيب', `/manage/${guildId}/welcome`, '<path d="M12 21s-8-4.5-8-10V5l8-3 8 3v6c0 5.5-8 10-8 10z"/><path d="m9 12 2 2 4-4"/>'],
         ['giveaway', 'الهدايا', `/manage/${guildId}/giveaway`, '<path d="M4 10h16v10H4zM3 7h18v3H3zM12 7v13M12 7H8a2 2 0 1 1 2-2c2 0 2 2 2 2z"/>'],
         ['roles', 'الرتب', `/manage/${guildId}/roles`, '<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 11a3 3 0 0 1 5 2M17 20h4"/>'],
+        ['roleassign', 'إعطاء رتبة', `/manage/${guildId}/roleassign`, '<path d="M12 5v14M5 12h14"/>'],
+        ['unban', 'فك الباند', `/manage/${guildId}/unban`, '<path d="M6 11V7a6 6 0 0 1 12 0v4"/><rect x="4" y="11" width="16" height="10" rx="2"/><path d="m9 16 2 2 4-4"/>'],
         ['mod', 'الإشراف', `/manage/${guildId}/mod`, '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>']
     ] : [];
     const navHtml = nav.map(([key, label, href, path]) => `<a class="rail-link ${active === key ? 'is-active' : ''}" href="${href}" aria-current="${active === key ? 'page' : 'false'}"><svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg><span>${label}</span><i></i></a>`).join('');
@@ -1045,7 +1047,7 @@ app.get('/manage/:guildId/welcome', checkAuth, async (req, res) => {
     const g = client.guilds.cache.get(req.params.guildId);
     if (!g) return res.redirect('/dashboard');
     let s = await GuildConfig.findOne({ guildId: g.id }) || { welcome: {} };
-    let img = s.welcome?.imagePath || 'https://placehold.co/800x400?text=No+Background';
+    let img = s.welcome?.imagePath || 'https://placehold.co/697x568?text=No+Background';
 
     const content = `
     <form method="POST" action="/save/${g.id}/welcome" class="welcome-editor">
@@ -1070,7 +1072,7 @@ app.get('/manage/:guildId/welcome', checkAuth, async (req, res) => {
         </div>
     </form>
     <style>
-      .editor-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(290px,.8fr);gap:20px}.designer-card{padding:25px}.editor-heading{display:flex;justify-content:space-between;gap:15px;margin-bottom:20px}.editor-heading h2{margin:6px 0 4px;font-size:21px}.editor-heading p{color:var(--muted);font-size:11px;margin:0}.editor-badge{height:max-content;padding:5px 9px;border-radius:20px;border:1px solid var(--line);color:var(--gold);font:600 9px 'IBM Plex Mono',monospace}.welcome-preview{position:relative;isolation:isolate;width:100%;aspect-ratio:2/1;overflow:hidden;border-radius:15px;background:#090806;border:1px solid var(--line);touch-action:none}.welcome-preview #bgPreview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.preview-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.68),rgba(0,0,0,.08))}.preview-copy{position:absolute;right:7%;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;color:#fff}.preview-copy span{font:600 10px 'IBM Plex Mono',monospace;letter-spacing:3px;color:var(--gold)}.preview-copy strong{font-size:32px;line-height:1.25}.preview-copy small{font-size:11px;color:#d2cabb}.preview-avatar{position:absolute;border:3px solid var(--gold);border-radius:50%;background-size:cover;background-position:center;cursor:grab;box-shadow:0 0 0 5px rgba(244,194,76,.14),0 10px 28px rgba(0,0,0,.4);touch-action:none;z-index:2}.preview-avatar:active{cursor:grabbing}.preview-avatar button{position:absolute;right:-9px;bottom:-9px;width:25px;height:25px;border:2px solid var(--gold);border-radius:50%;background:#171006;color:var(--gold);cursor:grab}.range-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}.range-controls label{margin:0;color:#b6ad9d;font-size:11px}.range-controls output{float:left;color:var(--gold);font:600 10px 'IBM Plex Mono',monospace}.range-controls input{padding:0;height:20px;margin-top:9px;background:transparent;border:0;box-shadow:none;accent-color:var(--gold)}.settings-card .card-title{display:flex;align-items:center;gap:9px}.settings-card .card-title h3{margin:0}.title-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:9px;background:rgba(244,194,76,.12);color:var(--gold)}.upload-note{color:var(--muted);font-size:10px;margin-top:7px}@media(max-width:850px){.editor-grid{grid-template-columns:1fr}.range-controls{grid-template-columns:1fr 1fr}.preview-copy strong{font-size:26px}}@media(max-width:500px){.range-controls{grid-template-columns:1fr}.editor-heading{display:block}.editor-badge{display:inline-block;margin-top:12px}}
+      .editor-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(290px,.8fr);gap:20px}.designer-card{padding:25px}.editor-heading{display:flex;justify-content:space-between;gap:15px;margin-bottom:20px}.editor-heading h2{margin:6px 0 4px;font-size:21px}.editor-heading p{color:var(--muted);font-size:11px;margin:0}.editor-badge{height:max-content;padding:5px 9px;border-radius:20px;border:1px solid var(--line);color:var(--gold);font:600 9px 'IBM Plex Mono',monospace}.welcome-preview{position:relative;isolation:isolate;width:100%;aspect-ratio:697/568;overflow:hidden;border-radius:15px;background:#090806;border:1px solid var(--line);touch-action:none}.welcome-preview #bgPreview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.preview-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.68),rgba(0,0,0,.08))}.preview-copy{position:absolute;right:7%;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;color:#fff}.preview-copy span{font:600 10px 'IBM Plex Mono',monospace;letter-spacing:3px;color:var(--gold)}.preview-copy strong{font-size:32px;line-height:1.25}.preview-copy small{font-size:11px;color:#d2cabb}.preview-avatar{position:absolute;border:3px solid var(--gold);border-radius:50%;background-size:cover;background-position:center;cursor:grab;box-shadow:0 0 0 5px rgba(244,194,76,.14),0 10px 28px rgba(0,0,0,.4);touch-action:none;z-index:2}.preview-avatar:active{cursor:grabbing}.preview-avatar button{position:absolute;right:-9px;bottom:-9px;width:25px;height:25px;border:2px solid var(--gold);border-radius:50%;background:#171006;color:var(--gold);cursor:grab}.range-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}.range-controls label{margin:0;color:#b6ad9d;font-size:11px}.range-controls output{float:left;color:var(--gold);font:600 10px 'IBM Plex Mono',monospace}.range-controls input{padding:0;height:20px;margin-top:9px;background:transparent;border:0;box-shadow:none;accent-color:var(--gold)}.settings-card .card-title{display:flex;align-items:center;gap:9px}.settings-card .card-title h3{margin:0}.title-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:9px;background:rgba(244,194,76,.12);color:var(--gold)}.upload-note{color:var(--muted);font-size:10px;margin-top:7px}@media(max-width:850px){.editor-grid{grid-template-columns:1fr}.range-controls{grid-template-columns:1fr 1fr}.preview-copy strong{font-size:26px}}@media(max-width:500px){.range-controls{grid-template-columns:1fr}.editor-heading{display:block}.editor-badge{display:inline-block;margin-top:12px}}
     </style>`;
     res.send(ui(g, 'welcome', content));
 });
@@ -1562,6 +1564,79 @@ app.post('/save/:guildId/roles', checkAuth, async (req, res) => {
     res.redirect(`/manage/${req.params.guildId}/roles`);
 });
 
+
+// --- [ Assign Role To Member ] ---
+app.get('/manage/:guildId/roleassign', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    if (!g) return res.redirect('/dashboard');
+
+    const roles = g.roles.cache
+        .filter(role => role.name !== '@everyone' && !role.managed)
+        .sort((a, b) => b.position - a.position);
+    const content = `
+    <div class="card">
+        <h3>إعطاء رتبة لعضو</h3>
+        <p style="color:var(--muted);font-size:12px;line-height:1.9;">اكتب ID العضو واختر الرتبة التي تريد إعطاءها له.</p>
+        <form method="POST" action="/save/${g.id}/roleassign">
+            <label>معرّف العضو (User ID)</label>
+            <input name="userId" required placeholder="مثال: 123456789012345678" inputmode="numeric" style="direction:ltr;text-align:left">
+            <label>الرتبة</label>
+            <select name="roleId" required>
+                <option value="">-- اختر الرتبة --</option>
+                ${roles.map(role => `<option value="${role.id}">${role.name}</option>`).join('')}
+            </select>
+            <button class="btn-save" type="submit" style="margin-top:20px;">إعطاء الرتبة</button>
+        </form>
+    </div>`;
+    res.send(ui(g, 'roleassign', content));
+});
+
+app.post('/save/:guildId/roleassign', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    const userId = String(req.body.userId || '').trim();
+    const roleId = String(req.body.roleId || '').trim();
+    if (!g || !/^\d{17,20}$/.test(userId) || !/^\d+$/.test(roleId)) {
+        return res.status(400).send('البيانات المدخلة غير صحيحة.');
+    }
+    const member = await g.members.fetch(userId).catch(() => null);
+    const role = g.roles.cache.get(roleId);
+    if (!member) return res.status(404).send('لم يتم العثور على العضو داخل السيرفر.');
+    if (!role || role.managed) return res.status(400).send('الرتبة غير صالحة.');
+    const botMember = g.members.me || await g.members.fetch(client.user.id).catch(() => null);
+    if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) return res.status(403).send('البوت لا يملك صلاحية إدارة الرتب.');
+    if (role.position >= botMember.roles.highest.position) return res.status(403).send('رتبة البوت يجب أن تكون أعلى من الرتبة المطلوبة.');
+    await member.roles.add(role, `إعطاء رتبة من لوحة التحكم بواسطة ${req.user?.username || 'الإدارة'}`);
+    res.redirect(`/manage/${g.id}/roleassign`);
+});
+
+// --- [ Unban Member ] ---
+app.get('/manage/:guildId/unban', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    if (!g) return res.redirect('/dashboard');
+    const content = `
+    <div class="card">
+        <h3>فك الباند عن عضو</h3>
+        <p style="color:var(--muted);font-size:12px;line-height:1.9;">ضع ID العضو فقط، وسيتم فك الحظر عنه مباشرة إذا كان موجوداً في قائمة المحظورين.</p>
+        <form method="POST" action="/save/${g.id}/unban">
+            <label>معرّف العضو (User ID)</label>
+            <input name="userId" required placeholder="مثال: 123456789012345678" inputmode="numeric" style="direction:ltr;text-align:left">
+            <button class="btn-save" type="submit" style="margin-top:20px;">فك الباند</button>
+        </form>
+    </div>`;
+    res.send(ui(g, 'unban', content));
+});
+
+app.post('/save/:guildId/unban', checkAuth, async (req, res) => {
+    const g = client.guilds.cache.get(req.params.guildId);
+    const userId = String(req.body.userId || '').trim();
+    if (!g || !/^\d+$/.test(userId)) return res.status(400).send('معرّف العضو غير صحيح.');
+    const botMember = g.members.me || await g.members.fetch(client.user.id).catch(() => null);
+    if (!botMember?.permissions.has(PermissionFlagsBits.BanMembers)) return res.status(403).send('البوت لا يملك صلاحية فك الحظر.');
+    const ban = await g.bans.fetch(userId).catch(() => null);
+    if (!ban) return res.status(404).send('هذا العضو غير موجود في قائمة المحظورين.');
+    await g.members.unban(userId, `فك الباند من لوحة التحكم بواسطة ${req.user?.username || 'الإدارة'}`);
+    res.redirect(`/manage/${g.id}/unban`);
+});
 
 // --- [ Mod / Jail Config ] ---
 app.get('/manage/:guildId/mod', checkAuth, async (req, res) => {
@@ -2341,15 +2416,15 @@ client.on('guildMemberAdd', async (member) => {
             .setFooter({ text: `ABOUD SYSTEM  - العضو رقم ${member.guild.memberCount}`, iconURL: member.guild.iconURL() });
 
         try {
-            const canvas = createCanvas(800, 400);
+            const canvas = createCanvas(697, 568);
             const ctx = canvas.getContext('2d');
 
             let bgUrl = config.welcome.imagePath;
-if (!bgUrl) bgUrl = 'https://placehold.co/800x400/050510/1e90ff?text=Welcome';
+if (!bgUrl) bgUrl = 'https://placehold.co/697x568/050510/1e90ff?text=Welcome';
 if (!bgUrl.startsWith('http' )) bgUrl = `${process.env.BASE_URL || 'http://localhost:3000'}${bgUrl}`;
-const background = await loadImage(bgUrl ).catch(() => loadImage('https://placehold.co/800x400/050510/1e90ff?text=Welcome' ));
+const background = await loadImage(bgUrl ).catch(() => loadImage('https://placehold.co/697x568/050510/1e90ff?text=Welcome' ));
 
-            ctx.drawImage(background, 0, 0, 800, 400);
+            ctx.drawImage(background, 0, 0, 697, 568);
 
             const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'welcome-image.png' });
             welcomeEmbed.setImage('attachment://welcome-image.png');
