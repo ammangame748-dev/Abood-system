@@ -582,7 +582,7 @@ passport.use(new Strategy({
 }, (accessToken, refreshToken, profile, done) => done(null, profile)));
 
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'ABOUD SYSTEM -secret-key-2026',
+    secret: process.env.SESSION_SECRET || 'BOT -secret-key-2026',
     resave: false,
     saveUninitialized: false
 }));
@@ -619,7 +619,7 @@ app.get('/login', (req, res) => {
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ABOUD SYSTEM · تسجيل الدخول</title>
+<title>BOT · تسجيل الدخول</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#070b17;--surface:#0d1426;--surface-2:#121d35;--line:rgba(153,176,255,.18);--cyan:#74e8ff;--indigo:#8074ff;--pink:#ff70a6;--text:#eef4ff;--muted:#8f9fbd}
@@ -631,7 +631,7 @@ app.get('/login', (req, res) => {
 @media(max-width:900px){.login-layout{grid-template-columns:1fr;max-width:600px}.login-visual{min-height:470px;padding:34px}.login-panel{padding:42px 34px}.visual-orbit{left:35%;top:18%}}@media(max-width:560px){.login-page{padding:14px}.login-layout{border-radius:24px}.login-visual{min-height:430px;padding:26px}.visual-content{margin-top:32px}.visual-content h1{font-size:43px}.visual-grid{gap:7px}.visual-stat{padding:12px 10px}.visual-stat b{font-size:16px}.login-panel{padding:34px 25px}.login-card h2{font-size:27px}.login-meta{margin-top:32px}}
 </style>
 </head>
-<body><main class="login-page"><section class="login-layout"><div class="login-visual"><div class="visual-orbit"></div><div class="login-brand"><div class="login-logo">AS</div><div><strong>ABOUD SYSTEM</strong><small>COMMAND CONSOLE</small></div></div><div class="visual-content"><div class="visual-kicker"><i></i> CONTROL CENTER / 03.0</div><h1>تحكّم بسيرفرك.<span>بطريقتك.</span></h1><p>مساحة قيادة موحّدة لإدارة الحماية، الأعضاء، التذاكر وكل أنظمة مجتمعك من مكان واحد.</p><div class="visual-grid"><div class="visual-stat"><b>24/7</b><span>مراقبة مستمرة</span></div><div class="visual-stat"><b>12+</b><span>نظام إدارة</span></div><div class="visual-stat"><b>LIVE</b><span>حالة الاتصال</span></div></div></div><div class="visual-footer"><span>ABOUD SYSTEM · SECURE BY DESIGN</span><span class="signal"><i></i> SYSTEM ONLINE</span></div></div><div class="login-panel"><div class="login-card"><div class="eyebrow">WELCOME BACK / AUTHENTICATION</div><h2>جاهز نبدأ؟</h2><p>سجّل دخولك للوصول إلى لوحة القيادة الخاصة بسيرفراتك.</p><div class="login-divider"><span>DISCORD ACCESS</span></div><a href="/auth/discord" class="discord-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.54 5.04A16.9 16.9 0 0 0 15.4 3.75l-.52 1.06a15.2 15.2 0 0 0-5.76 0L8.6 3.75a16.9 16.9 0 0 0-4.14 1.29C1.84 8.94 1.13 12.86 1.49 16.73a16.8 16.8 0 0 0 5.06 2.57l1.23-1.67c-.68-.26-1.33-.58-1.94-.96l.47-.36c3.74 1.75 7.8 1.75 11.49 0l.48.36c-.62.38-1.27.7-1.95.96l1.23 1.67a16.8 16.8 0 0 0 5.06-2.57c.42-4.49-.72-8.37-3.08-11.69ZM8.24 15.23c-1.12 0-2.04-1.03-2.04-2.3s.9-2.3 2.04-2.3c1.14 0 2.05 1.03 2.04 2.3 0 1.27-.9 2.3-2.04 2.3Zm7.52 0c-1.12 0-2.04-1.03-2.04-2.3s.9-2.3 2.04-2.3c1.14 0 2.05 1.03 2.04 2.3-1.12 1.27-.92 2.3-2.04 2.3Z"/></svg>تسجيل الدخول عبر Discord</a><div class="login-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 20 6v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg><span>تتم المصادقة عبر Discord الرسمي فقط. لا يتم حفظ كلمة المرور أو أي بيانات حساسة.</span></div><div class="login-meta"><span>ENCRYPTED SESSION</span><span>BUILD 03.0.1</span></div></div></div></section></main></body></html>`);
+<body><main class="login-page"><section class="login-layout"><div class="login-visual"><div class="visual-orbit"></div><div class="login-brand"><div class="login-logo">AS</div><div><strong>BOT</strong><small>COMMAND CONSOLE</small></div></div><div class="visual-content"><div class="visual-kicker"><i></i> CONTROL CENTER / 03.0</div><h1>تحكّم بسيرفرك.<span>بطريقتك.</span></h1><p>مساحة قيادة موحّدة لإدارة الحماية، الأعضاء، التذاكر وكل أنظمة مجتمعك من مكان واحد.</p><div class="visual-grid"><div class="visual-stat"><b>24/7</b><span>مراقبة مستمرة</span></div><div class="visual-stat"><b>12+</b><span>نظام إدارة</span></div><div class="visual-stat"><b>LIVE</b><span>حالة الاتصال</span></div></div></div><div class="visual-footer"><span>BOT · SECURE BY DESIGN</span><span class="signal"><i></i> SYSTEM ONLINE</span></div></div><div class="login-panel"><div class="login-card"><div class="eyebrow">WELCOME BACK / AUTHENTICATION</div><h2>جاهز نبدأ؟</h2><p>سجّل دخولك للوصول إلى لوحة القيادة الخاصة بسيرفراتك.</p><div class="login-divider"><span>DISCORD ACCESS</span></div><a href="/auth/discord" class="discord-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.54 5.04A16.9 16.9 0 0 0 15.4 3.75l-.52 1.06a15.2 15.2 0 0 0-5.76 0L8.6 3.75a16.9 16.9 0 0 0-4.14 1.29C1.84 8.94 1.13 12.86 1.49 16.73a16.8 16.8 0 0 0 5.06 2.57l1.23-1.67c-.68-.26-1.33-.58-1.94-.96l.47-.36c3.74 1.75 7.8 1.75 11.49 0l.48.36c-.62.38-1.27.7-1.95.96l1.23 1.67a16.8 16.8 0 0 0 5.06-2.57c.42-4.49-.72-8.37-3.08-11.69ZM8.24 15.23c-1.12 0-2.04-1.03-2.04-2.3s.9-2.3 2.04-2.3c1.14 0 2.05 1.03 2.04 2.3 0 1.27-.9 2.3-2.04 2.3Zm7.52 0c-1.12 0-2.04-1.03-2.04-2.3s.9-2.3 2.04-2.3c1.14 0 2.05 1.03 2.04 2.3-1.12 1.27-.92 2.3-2.04 2.3Z"/></svg>تسجيل الدخول عبر Discord</a><div class="login-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 20 6v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg><span>تتم المصادقة عبر Discord الرسمي فقط. لا يتم حفظ كلمة المرور أو أي بيانات حساسة.</span></div><div class="login-meta"><span>ENCRYPTED SESSION</span><span>BUILD 03.0.1</span></div></div></div></section></main></body></html>`);
 });
 
 app.get('/ping' , (req, res) => res.send('I am alive!'));
@@ -666,7 +666,7 @@ function ui(guild, active, content) {
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${safe(guildName)} · ABOUD SYSTEM</title>
+<title>${safe(guildName)} · BOT</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#070b17;--bg-2:#0a1021;--sidebar:#0b1123;--surface:#101a30;--surface-2:#152442;--surface-3:#1a2c50;--line:rgba(137,166,255,.18);--line-strong:rgba(116,232,255,.52);--cyan:#74e8ff;--indigo:#8074ff;--pink:#ff70a6;--green:#5bf0bf;--text:#edf4ff;--muted:#8c9cba;--sidebar-width:292px;--shadow:0 24px 80px rgba(0,0,0,.34)}
@@ -674,7 +674,7 @@ function ui(guild, active, content) {
 @media(max-width:1100px){:root{--sidebar-width:255px}.page-content{padding:30px 25px}.topbar{padding:0 25px}.quick-strip{grid-template-columns:1fr 1fr}.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:720px){.sidebar{transform:translateX(110%);transition:transform .25s ease;width:min(310px,88vw);box-shadow:-25px 0 80px rgba(0,0,0,.58)}.sidebar.is-open{transform:translateX(0)}.main-area{margin-right:0}.menu-btn{display:grid;place-items:center}.topbar{height:70px;padding:0 15px}.topbar-center{display:none}.topbar-tools .tool-link:first-child{display:none}.page-content{padding:22px 14px 40px}.page-head{display:block}.page-head-actions{margin-top:15px;justify-content:space-between}.page-head h1{font-size:25px}.quick-strip{grid-template-columns:1fr;gap:8px}.card{padding:19px 15px;border-radius:16px}.editor-grid{grid-template-columns:1fr}.range-controls{grid-template-columns:1fr}.stats-grid{grid-template-columns:1fr 1fr}.stat-box{padding:15px}.stat-num{font-size:21px}.drawer-backdrop{position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.58)}.drawer-backdrop.is-open{display:block}}
 </style>
 </head>
-<body><div class="app-shell"><aside class="sidebar" id="rail"><div class="brand-block"><div class="brand-mark">AS</div><div><strong>ABOUD SYSTEM</strong><small>COMMAND CONSOLE</small></div></div>${guildId ? `<div class="workspace-switch"><div class="ws-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg></div><div><strong>${safe(guildName)}</strong><small>مساحة العمل الحالية</small></div></div><div class="sidebar-label">Control modules</div><nav class="rail-nav">${navHtml}</nav>` : `<div class="sidebar-label">Workspace</div><div class="workspace-empty">إدارة كل سيرفراتك من مركز واحد.</div>`}<div class="sidebar-bottom"><div class="bottom-status"><i></i> Aboud System متصل</div>${guildId ? safe(guildName) : 'لوحة السيرفرات'}<a href="/logout">خروج</a></div></aside><div class="drawer-backdrop" id="backdrop"></div><main class="main-area"><header class="topbar"><button class="menu-btn" id="menuBtn" aria-label="فتح القائمة"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div class="topbar-title"><span>ABOUD SYSTEM / CONTROL CONSOLE</span><strong>${safe(guildName)}</strong></div><div class="topbar-center"><i class="connection-dot"></i> جميع الأنظمة تعمل بشكل طبيعي</div><div class="topbar-tools"><a class="tool-link" href="/dashboard" title="السيرفرات"><svg viewBox="0 0 24 24"><path d="m4 11 8-7 8 7v8a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg></a><a class="tool-link" href="/logout" title="تسجيل الخروج"><svg viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M21 4v16"/></svg></a></div></header><section class="page-content"><div class="page-head"><div><div class="eyebrow">ABOUD SYSTEM / ${guildId ? 'SERVER CONTROL' : 'WORKSPACE OVERVIEW'}</div><h1>${safe(guildName)}</h1><p>${guildId ? 'كل الأدوات التي تحتاجها لإدارة مجتمعك، مرتبة في مساحة قيادة واحدة.' : 'اختَر مساحة العمل التي تريد إدارتها وابدأ التحكم فورًا.'}</p></div><div class="page-head-actions"><span class="live-badge"><i></i> LIVE CONTROL</span>${guildId ? `<a class="back-link" href="/dashboard"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>كل السيرفرات</a>` : ''}</div></div>${guildId ? `<div class="quick-strip"><div class="quick-item"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/></svg></div><div><strong>طبقة حماية موحّدة</strong><span>إعدادات الأمان والسجلات بمكان واحد</span></div></div><div class="quick-item"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-4 3 2 5-6"/></svg></div><div><strong>مراقبة مباشرة</strong><span>تابع أداء السيرفر ونشاطه لحظيًا</span></div></div><div class="quick-item"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"/><path d="M8 7v10M16 7v10"/></svg></div><div><strong>إدارة أسرع</strong><span>وصول مباشر لكل الأنظمة الأساسية</span></div></div></div>` : ''}<div class="view">${content}</div></section></main></div><script>(() => { const rail=document.getElementById('rail'), backdrop=document.getElementById('backdrop'), btn=document.getElementById('menuBtn'); if(!rail||!backdrop||!btn)return; const close=()=>{rail.classList.remove('is-open');backdrop.classList.remove('is-open')}; btn.addEventListener('click',()=>{rail.classList.toggle('is-open');backdrop.classList.toggle('is-open')}); backdrop.addEventListener('click',close); window.addEventListener('keydown',e=>{if(e.key==='Escape')close()}); })();</script></body></html>`;
+<body><div class="app-shell"><aside class="sidebar" id="rail"><div class="brand-block"><div class="brand-mark">AS</div><div><strong>BOT</strong><small>COMMAND CONSOLE</small></div></div>${guildId ? `<div class="workspace-switch"><div class="ws-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg></div><div><strong>${safe(guildName)}</strong><small>مساحة العمل الحالية</small></div></div><div class="sidebar-label">Control modules</div><nav class="rail-nav">${navHtml}</nav>` : `<div class="sidebar-label">Workspace</div><div class="workspace-empty">إدارة كل سيرفراتك من مركز واحد.</div>`}<div class="sidebar-bottom"><div class="bottom-status"><i></i> BOT متصل</div>${guildId ? safe(guildName) : 'لوحة السيرفرات'}<a href="/logout">خروج</a></div></aside><div class="drawer-backdrop" id="backdrop"></div><main class="main-area"><header class="topbar"><button class="menu-btn" id="menuBtn" aria-label="فتح القائمة"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div class="topbar-title"><span>BOT / CONTROL CONSOLE</span><strong>${safe(guildName)}</strong></div><div class="topbar-center"><i class="connection-dot"></i> جميع الأنظمة تعمل بشكل طبيعي</div><div class="topbar-tools"><a class="tool-link" href="/dashboard" title="السيرفرات"><svg viewBox="0 0 24 24"><path d="m4 11 8-7 8 7v8a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg></a><a class="tool-link" href="/logout" title="تسجيل الخروج"><svg viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M21 4v16"/></svg></a></div></header><section class="page-content"><div class="page-head"><div><div class="eyebrow">ABOUD SYSTEM / ${guildId ? 'SERVER CONTROL' : 'WORKSPACE OVERVIEW'}</div><h1>${safe(guildName)}</h1><p>${guildId ? 'كل الأدوات التي تحتاجها لإدارة مجتمعك، مرتبة في مساحة قيادة واحدة.' : 'اختَر مساحة العمل التي تريد إدارتها وابدأ التحكم فورًا.'}</p></div><div class="page-head-actions"><span class="live-badge"><i></i> LIVE CONTROL</span>${guildId ? `<a class="back-link" href="/dashboard"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>كل السيرفرات</a>` : ''}</div></div>${guildId ? `<div class="quick-strip"><div class="quick-item"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/></svg></div><div><strong>طبقة حماية موحّدة</strong><span>إعدادات الأمان والسجلات بمكان واحد</span></div></div><div class="quick-item"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-4 3 2 5-6"/></svg></div><div><strong>مراقبة مباشرة</strong><span>تابع أداء السيرفر ونشاطه لحظيًا</span></div></div><div class="quick-item"><div class="quick-icon"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"/><path d="M8 7v10M16 7v10"/></svg></div><div><strong>إدارة أسرع</strong><span>وصول مباشر لكل الأنظمة الأساسية</span></div></div></div>` : ''}<div class="view">${content}</div></section></main></div><script>(() => { const rail=document.getElementById('rail'), backdrop=document.getElementById('backdrop'), btn=document.getElementById('menuBtn'); if(!rail||!backdrop||!btn)return; const close=()=>{rail.classList.remove('is-open');backdrop.classList.remove('is-open')}; btn.addEventListener('click',()=>{rail.classList.toggle('is-open');backdrop.classList.toggle('is-open')}); backdrop.addEventListener('click',close); window.addEventListener('keydown',e=>{if(e.key==='Escape')close()}); })();</script></body></html>`;
 }
 
 // --- [ Dashboard - Admin Commands ] ---
@@ -764,7 +764,7 @@ app.get('/dashboard', checkAuth, (req, res) => {
             || 'https://cdn.discordapp.com/embed/avatars/0.png';
         return `<article class="server-card guild-card">
             <div class="server-card-top"><img src="${iconURL}" class="guild-icon" alt="${g.name}"><span class="server-state ${hasBot ? 'is-ready' : 'is-pending'}"><i></i>${hasBot ? 'متصل' : 'بانتظار البوت'}</span></div>
-            <div class="server-card-copy"><span class="server-label">SERVER WORKSPACE</span><h3>${g.name}</h3><p>${hasBot ? 'كل أنظمة Aboud System جاهزة للإدارة.' : 'أضف البوت لتفعيل مركز التحكم.'}</p></div>
+            <div class="server-card-copy"><span class="server-label">SERVER WORKSPACE</span><h3>${g.name}</h3><p>${hasBot ? 'كل أنظمة BOT جاهزة للإدارة.' : 'أضف البوت لتفعيل مركز التحكم.'}</p></div>
             <a class="server-action primary" href="/manage/${g.id}/home"><span>فتح لوحة الإدارة</span><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
         </article>`;
     }).join('');
@@ -773,7 +773,7 @@ app.get('/dashboard', checkAuth, (req, res) => {
     <style>
       .dashboard-hero{position:relative;overflow:hidden;display:grid;grid-template-columns:1.2fr .8fr;gap:25px;align-items:center;margin-bottom:25px;padding:30px;border:1px solid var(--line-strong);border-radius:24px;background:linear-gradient(120deg,rgba(128,116,255,.20),rgba(15,28,58,.84) 53%,rgba(116,232,255,.08))}.dashboard-hero:after{content:'AS';position:absolute;left:20px;bottom:-45px;color:rgba(116,232,255,.06);font:900 150px 'IBM Plex Mono',monospace;letter-spacing:-12px}.dashboard-hero-copy{position:relative;z-index:1}.dashboard-hero-copy .eyebrow{color:var(--cyan);font:600 9px 'IBM Plex Mono',monospace;letter-spacing:1.8px}.dashboard-hero-copy h2{margin:10px 0 6px;font-size:27px}.dashboard-hero-copy p{margin:0;max-width:580px;color:#a5b6d1;font-size:12px;line-height:1.9}.dashboard-actions{display:flex;justify-content:flex-end;gap:10px;position:relative;z-index:1}.hero-action{display:inline-flex;align-items:center;gap:8px;padding:12px 15px;border-radius:12px;text-decoration:none;font-size:11px;font-weight:800}.hero-action.primary{color:#071021;background:linear-gradient(120deg,var(--cyan),#9388ff)}.hero-action.ghost{color:#b8c8e5;border:1px solid var(--line);background:rgba(5,12,27,.35)}.hero-action svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}.server-toolbar{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:16px}.server-toolbar h2{margin:0;font-size:18px}.server-toolbar p{margin:4px 0 0;color:var(--muted);font-size:11px}.server-count{padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--cyan);background:rgba(116,232,255,.06);font:700 10px 'IBM Plex Mono',monospace}.server-search{position:relative;margin-bottom:16px}.server-search svg{position:absolute;right:14px;top:13px;width:17px;height:17px;color:#7183a3;fill:none;stroke:currentColor;stroke-width:1.7;pointer-events:none}.server-search input{padding-right:42px;border-radius:13px;background:rgba(5,12,27,.62)}.guild-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}.server-card{position:relative;overflow:hidden;padding:20px!important}.server-card:before{content:'';position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--indigo),var(--cyan));opacity:.75}.server-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px}.server-state{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;font:600 9px 'IBM Plex Mono',monospace}.server-state i{width:6px;height:6px;border-radius:50%}.server-state.is-ready{color:#8ef4cc;background:rgba(91,240,191,.08)}.server-state.is-ready i{background:var(--green);box-shadow:0 0 10px var(--green)}.server-state.is-pending{color:#ffb5c9;background:rgba(255,112,166,.08)}.server-state.is-pending i{background:var(--pink);box-shadow:0 0 10px var(--pink)}.server-card-copy{margin:19px 0}.server-label{color:#7487a9;font:600 9px 'IBM Plex Mono',monospace;letter-spacing:1.3px}.server-card h3{margin:7px 0 5px;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.server-card p{min-height:38px;margin:0;color:var(--muted);font-size:11px;line-height:1.8}.server-action{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:11px;text-decoration:none;font-size:11px;font-weight:800}.server-action.primary{color:#071021;background:linear-gradient(120deg,var(--cyan),#9388ff)}.server-action.secondary{color:#b9cae7;border:1px solid var(--line);background:rgba(116,232,255,.045)}.server-action svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}.empty-servers{padding:55px 20px;text-align:center;border:1px dashed var(--line-strong);border-radius:18px;color:var(--muted)}.empty-servers svg{width:35px;height:35px;color:var(--cyan);fill:none;stroke:currentColor;stroke-width:1.5;margin-bottom:10px}@media(max-width:720px){.dashboard-hero{grid-template-columns:1fr;padding:23px}.dashboard-actions{justify-content:flex-start;flex-wrap:wrap}.server-toolbar{align-items:flex-start}.server-count{margin-top:2px}}
     </style>
-    <section class="dashboard-hero"><div class="dashboard-hero-copy"><div class="eyebrow">ABOUD SYSTEM / COMMAND CENTER</div><h2>كل سيرفراتك، تحت السيطرة.</h2><p>اختر مساحة العمل التي تريد إدارتها. من هنا تبدأ إدارة الحماية، الأعضاء، التذاكر والأنظمة المتقدمة.</p></div><div class="dashboard-actions"><a class="hero-action primary" href="#serverGrid"><svg viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></svg>استعراض السيرفرات</a><a class="hero-action ghost" href="/logout"><svg viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M21 4v16"/></svg>خروج</a></div></section>
+    <section class="dashboard-hero"><div class="dashboard-hero-copy"><div class="eyebrow">BOT / COMMAND CENTER</div><h2>كل سيرفراتك، تحت السيطرة.</h2><p>اختر مساحة العمل التي تريد إدارتها. من هنا تبدأ إدارة الحماية، الأعضاء، التذاكر والأنظمة المتقدمة.</p></div><div class="dashboard-actions"><a class="hero-action primary" href="#serverGrid"><svg viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></svg>استعراض السيرفرات</a><a class="hero-action ghost" href="/logout"><svg viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3M21 4v16"/></svg>خروج</a></div></section>
     <div class="server-toolbar"><div><h2>مساحات العمل</h2><p>${adminGuilds.length} سيرفر موجود فيها البوت.</p></div><span class="server-count">${adminGuilds.length} SERVERS</span></div>
     <div class="server-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input type="search" id="guildSearch" placeholder="ابحث باسم السيرفر..." autocomplete="off"></div>
     <div class="guild-grid" id="serverGrid">${cards || `<div class="empty-servers"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg><div>لا توجد سيرفرات متاحة حاليًا.</div></div>`}</div>
@@ -1768,7 +1768,7 @@ client.on('messageCreate', async (msg) => {if (!msg.guild || msg.author.bot) ret
                     .setAuthor({ name: `اقتراح من ${msg.author.username}`, iconURL: authorAvatar })
                     .setDescription(content || '*بدون نص*')
                     .setColor(0xd4af37)
-                    .setFooter({ text: 'ABOUD SYSTEM  - Suggestions' })
+                    .setFooter({ text: 'BOT  - Suggestions' })
                     .setTimestamp()
                     .addFields(
                         { name: getEmojiDisplay(msg.guild, sugCfg.emoji1), value: '0', inline: true },
@@ -2403,7 +2403,7 @@ client.on('guildMemberAdd', async (member) => {
             .setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 256 }))
             .setColor(0xd4af37)
             .setTimestamp()
-            .setFooter({ text: `ABOUD SYSTEM  - العضو رقم ${member.guild.memberCount}`, iconURL: member.guild.iconURL() });
+            .setFooter({ text: `BOT  - العضو رقم ${member.guild.memberCount}`, iconURL: member.guild.iconURL() });
 
         try {
             const canvas = createCanvas(697, 568);
@@ -2755,7 +2755,7 @@ client.on('interactionCreate', async (interaction) => {
                     .setTitle(title)
                     .setDescription(text)
                     .setColor(0xd4af37)
-                    .setFooter({ text: `ABOUD SYSTEM  - إعلان رسمي بواسطة ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL() })
+                    .setFooter({ text: `BOT  - إعلان رسمي بواسطة ${interaction.user.username}`, iconURL: interaction.user.displayAvatarURL() })
                     .setTimestamp();
                 if (image) embed.setImage(image.url);
 
@@ -2825,7 +2825,7 @@ client.on('interactionCreate', async (interaction) => {
                         { name: 'عدد الرتب', value: `${g.roles.cache.size}`, inline: true },
                         { name: 'تاريخ الإنشاء', value: `<t:${Math.floor(g.createdTimestamp / 1000)}:D>`, inline: true },
                     )
-                    .setFooter({ text: 'ABOUD SYSTEM ' })
+                    .setFooter({ text: 'BOT ' })
                     .setTimestamp();
                 return interaction.reply({ embeds: [embed] });
             }
@@ -3232,7 +3232,7 @@ async function openTicket(interaction, tConfig, ticketType, sectionConfig = {}) 
             )
             .setThumbnail(interaction.user.displayAvatarURL())
             .setTimestamp()
-            .setFooter({ text: 'ABOUD SYSTEM  - Tickets' });
+            .setFooter({ text: 'BOT  - Tickets' });
 
         if (tConfig.topImagePath && fs.existsSync(tConfig.topImagePath)) {
             const topName = path.basename(tConfig.topImagePath);
@@ -3290,7 +3290,7 @@ async function fetchKickChannel(username) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10000);
     try {
-        const headers = { Accept: 'application/json', 'User-Agent': 'ABOUD SYSTEM-Bot/2.0' };
+        const headers = { Accept: 'application/json', 'User-Agent': 'BOT-Bot/2.0' };
         for (const version of ['v2', 'v1']) {
             const response = await fetch(`https://kick.com/api/${version}/channels/${encodeURIComponent(username)}`, {
                 headers, signal: controller.signal
@@ -3645,10 +3645,10 @@ client.once('ready', async () => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`[ABOUD SYSTEM ] Dashboard running on port ${PORT}`);
+    console.log(`[BOT ] Dashboard running on port ${PORT}`);
 });
 
 client.login(process.env.TOKEN).catch(err => {
-    console.error('[ABOUD SYSTEM ] Login failed:', err);
+    console.error('[BOT ] Login failed:', err);
     process.exit(1);
 });
